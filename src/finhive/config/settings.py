@@ -53,6 +53,32 @@ def get_sec_edgar_user_agent() -> str:
     return ua
 
 
+def get_alpha_vantage_api_key() -> str:
+    """Lee ALPHA_VANTAGE_API_KEY de env; falla explícito si no está configurada.
+
+    Ojo: el free tier de Alpha Vantage es chico (históricamente ~25
+    requests/día) — usar con cuidado en tests/desarrollo, no en loops.
+    """
+    key = os.getenv("ALPHA_VANTAGE_API_KEY", "").strip()
+    if not key:
+        raise RuntimeError(
+            "ALPHA_VANTAGE_API_KEY no está seteada. Conseguila gratis en "
+            "https://www.alphavantage.co/support/#api-key y ponela en tu .env."
+        )
+    return key
+
+
+def get_tavily_api_key() -> str:
+    """Lee TAVILY_API_KEY de env; falla explícito si no está configurada."""
+    key = os.getenv("TAVILY_API_KEY", "").strip()
+    if not key:
+        raise RuntimeError(
+            "TAVILY_API_KEY no está seteada. Conseguila gratis en "
+            "https://tavily.com y ponela en tu .env."
+        )
+    return key
+
+
 def get_chat_model(tier: Literal["supervisor", "worker"], temperature: float = 0.1):
     """Instancia un `ChatDatabricks` apuntando al endpoint correcto según el rol.
 

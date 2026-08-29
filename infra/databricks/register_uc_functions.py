@@ -49,6 +49,12 @@ def main() -> None:
         get_fred_series_latest,
         search_fred_series,
     )
+    from finhive.tools.news_data import (
+        get_earnings_calendar,
+        get_market_news_sentiment,
+        get_stock_news_sentiment,
+        web_search_news,
+    )
     from finhive.tools.portfolio_math import (
         add_numbers,
         calculate_correlation_matrix,
@@ -77,6 +83,10 @@ def main() -> None:
             add_numbers,
             multiply_numbers,
             divide_numbers,
+            get_stock_news_sentiment,
+            get_market_news_sentiment,
+            get_earnings_calendar,
+            web_search_news,
         ]
     )
 
