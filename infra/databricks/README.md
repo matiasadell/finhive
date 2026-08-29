@@ -41,6 +41,7 @@ externa, mismo nivel de gobernanza vía AI Gateway.
 | UC Functions (Portfolio & Risk) | `calculate_portfolio_volatility`, `calculate_portfolio_var`, `calculate_correlation_matrix`, `calculate_sharpe_ratio`, `add_numbers`, `multiply_numbers`, `divide_numbers` | Ídem — cómputo propio con numpy/pandas, no solo passthrough a una API |
 | UC Functions (News & Sentiment) | `get_stock_news_sentiment`, `get_market_news_sentiment`, `get_earnings_calendar`, `web_search_news` | Ídem — Alpha Vantage (sentiment/calendario) + Tavily (fallback web estilo CRAG) |
 | UC Functions (Crypto & Alt) | `search_crypto_id`, `get_crypto_price`, `get_crypto_price_history`, `get_trending_crypto`, `get_top_crypto_by_market_cap` | Ídem — CoinGecko, API pública sin key |
+| Model service (routing) | `model-services/workspace.finhive.finhive_router` | Unity AI Gateway *Beta*: routing real 70% `llama_v3_3_70b_instruct` / 30% `gpt-oss-120b`, verificado empíricamente. No integrado a `src/finhive` todavía — `databricks-langchain` no soporta el path nuevo (ver ADR 0009) |
 
 25 UC Functions registradas en total, los 5 dominios completos. Todas las tools de los 5
 dominios están envueltas con `finhive.tools.wrappers.safe_tool` (ADR 0007): errores de
@@ -49,4 +50,4 @@ red/rate-limit se devuelven como observación al LLM en vez de crashear el grafo
 Los 3 endpoints de FinHive tienen `usage_tracking_config` **y** `rate_limits` explícitos
 de AI Gateway (ADR 0008) — no solo el tracking default que Databricks aplica sin pedirlo.
 
-Ver `docs/architecture/adr/` (0001-0008) para el historial completo de estas decisiones.
+Ver `docs/architecture/adr/` (0001-0009) para el historial completo de estas decisiones.
