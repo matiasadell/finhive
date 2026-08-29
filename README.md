@@ -28,7 +28,7 @@ Databricks Apps).
 Cada worker sigue el patrón ReAct; cada sub-supervisor compone sus workers como un
 sub-grafo de LangGraph; el supervisor raíz compone los cinco sub-grafos ("Hierarchical
 Agent Teams"). El detalle completo de decisiones de arquitectura está en
-[`docs/architecture/adr/`](docs/architecture/adr/) (ADRs 0001-0011), incluyendo un mapa
+[`docs/architecture/adr/`](docs/architecture/adr/) (ADRs 0001-0012), incluyendo un mapa
 explícito de qué concepto de arquitectura agéntica (ReAct, Reflexion, Self-RAG/CRAG,
 RAPTOR, Adaptive-RAG, Mixture-of-Agents, MCP, LLM Gateway, etc.) se aplica en qué parte
 del sistema — MCP, por ejemplo, se resuelve como Unity Catalog Functions gobernadas
@@ -53,7 +53,7 @@ implementada acá sobre un caso de uso financiero real.
 | Gateway / gobernanza | Databricks AI Gateway |
 | Vector search | Databricks Vector Search sobre Unity Catalog (embeddings: GTE Large nativo de Databricks) |
 | Almacenamiento / catálogo | Unity Catalog (tablas, volumes) |
-| Memoria persistente | Lakebase (Postgres serverless) |
+| Memoria persistente | Tablas Delta en Unity Catalog (`workspace.finhive`), vía el SQL warehouse serverless (no Lakebase — ver ADR 0012) |
 | Observabilidad / evaluación | MLflow Tracing + MLflow Evaluate, LangSmith |
 | Demo | Streamlit, desplegado como Databricks App |
 | Datos financieros | yfinance, SEC EDGAR, FRED, Alpha Vantage, CoinGecko, Tavily |
@@ -106,7 +106,7 @@ por cada uno de los 5 dominios más una pregunta cross-domain.
 - [x] Rate limits explícitos de AI Gateway + model routing real (70/30 entre dos modelos), **integrado como modelo del top-level supervisor** (ADR 0008, 0009, 0010)
 - [x] Model service de embeddings gobernado por Unity AI Gateway (`finhive_embeddings`, GTE Large)
 - [x] Guardrails de entrada (moderación de tópico/scope) y salida (groundedness check), como nodos propios del grafo (ADR 0011)
-- [ ] Memoria persistente
+- [x] Memoria persistente: sesión (thread_id, entre invocaciones) + hechos de largo plazo estilo MemGPT, sobre tablas Delta en Unity Catalog (ADR 0012)
 - [ ] Evaluación (MLflow + LangSmith)
 - [ ] Demo Streamlit desplegada
 - [x] Artículo técnico end-to-end (`docs/latex/finhive_article.tex`) + presentación LinkedIn (`docs/latex/finhive_presentation.tex`)

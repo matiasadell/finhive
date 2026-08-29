@@ -1,6 +1,7 @@
 """Guardrail de salida: verifica grounding antes de entregar la respuesta final.
 
-Corre una única vez, justo antes de terminar el grafo — tanto si el
+Corre una única vez, justo antes del nodo de memoria que cierra el grafo
+(`finhive.memory.nodes.memory_remember_node`, ver ADR 0012) — tanto si el
 supervisor raíz decidió FINISH como si se cortó por el límite de
 iteraciones de `top_supervisor.py` (`_MAX_ITERATIONS`, el caso con más
 riesgo real de una respuesta a medio construir). Ataca directamente los dos
@@ -21,7 +22,6 @@ from __future__ import annotations
 from typing import Literal, TypedDict
 
 from langchain_core.messages import AIMessage
-from langgraph.graph import END
 from langgraph.types import Command
 
 from finhive.config.settings import get_chat_model
@@ -51,7 +51,7 @@ class _GroundednessCheck(TypedDict):
     reason: str
 
 
-def output_guardrail_node(state: FinHiveState) -> Command[Literal["__end__"]]:
+def output_guardrail_node(state: FinHiveState) -> Command[Literal["memory_remember"]]:
     """Clasifica si la respuesta final está respaldada por evidencia de las tools."""
     llm = get_chat_model("worker", temperature=0.0)
     structured_llm = llm.with_structured_output(_GroundednessCheck)
@@ -68,7 +68,7 @@ def output_guardrail_node(state: FinHiveState) -> Command[Literal["__end__"]]:
 
     grounded = str(response.get("grounded", "si")).strip().lower() in ("si", "sí", "yes", "true")
     if grounded:
-        return Command(goto=END)
+        return Command(goto="memory_remember")
 
     reason = response.get("reason") or "no se encontró evidencia de tools para algunos datos citados"
     warning = (
@@ -78,5 +78,5 @@ def output_guardrail_node(state: FinHiveState) -> Command[Literal["__end__"]]:
     )
     return Command(
         update={"messages": [AIMessage(content=warning, name="output_guardrail")]},
-        goto=END,
+        goto="memory_remember",
     )

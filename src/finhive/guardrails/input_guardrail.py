@@ -53,7 +53,7 @@ class _TopicCheck(TypedDict):
     reason: str
 
 
-def input_guardrail_node(state: FinHiveState) -> Command[Literal["supervisor", "__end__"]]:
+def input_guardrail_node(state: FinHiveState) -> Command[Literal["memory_recall", "__end__"]]:
     """Clasifica el último mensaje del usuario; bloquea antes del supervisor si no aplica."""
     last_user_message = state["messages"][-1].content
 
@@ -68,7 +68,7 @@ def input_guardrail_node(state: FinHiveState) -> Command[Literal["supervisor", "
 
     in_scope = str(response.get("in_scope", "si")).strip().lower() in ("si", "sí", "yes", "true")
     if in_scope:
-        return Command(goto="supervisor")
+        return Command(goto="memory_recall")
 
     reason = response.get("reason") or "fuera del alcance de FinHive"
     refusal = (

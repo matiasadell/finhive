@@ -18,6 +18,11 @@ como Unity Catalog Functions, genérico y reutilizable entre dominios. Es el ree
 los Managed MCP servers de Databricks (que facturan cómputo serverless por invocación) —
 ver ADR 0004. Uso: `uv run python infra/databricks/register_uc_functions.py`.
 
+**`setup_memory_tables.py`** (ya escrito, no es roadmap) — crea las 2 tablas Delta de
+memoria persistente (idempotente, `CREATE TABLE IF NOT EXISTS`). Es el reemplazo de
+Lakebase Postgres (Public Preview, entitlement de Free Edition sin confirmar) — ver ADR
+0012. Uso: `uv run python infra/databricks/setup_memory_tables.py`.
+
 El LLM **no requiere registrar un External Model**: se usan los Foundation Model APIs
 nativos de Databricks (`system.ai.*`), ya provisionados en el workspace y gratis en Free
 Edition — ver ADR 0003. Se evaluó Groq como External Model tipo `custom` (ADR 0002) pero
@@ -43,6 +48,9 @@ externa, mismo nivel de gobernanza vía AI Gateway.
 | UC Functions (Crypto & Alt) | `search_crypto_id`, `get_crypto_price`, `get_crypto_price_history`, `get_trending_crypto`, `get_top_crypto_by_market_cap` | Ídem — CoinGecko, API pública sin key |
 | Model service (routing) | `model-services/workspace.finhive.finhive_router` | Unity AI Gateway *Beta*: routing real 70% `llama_v3_3_70b_instruct` / 30% `gpt-oss-120b`. **Integrado**: modelo del top-level supervisor vía `get_router_chat_model()` (`langchain_openai.ChatOpenAI` contra `/ai-gateway/mlflow/v1`, ver ADR 0010) |
 | Model service (embeddings) | `model-services/workspace.finhive.finhive_embeddings` | Unity AI Gateway *Beta*: 100% `gte_large_en_v1_5`. Disponible vía `get_gateway_embeddings()`, sin uso activo todavía (RAG/Vector Search pendiente) |
+| SQL warehouse | `Serverless Starter Warehouse` (`1a9a12e190f307b2`) | `PRO`, 2X-Small, serverless. Backend real de la memoria persistente (ADR 0012), vía `databricks.sdk` Statement Execution API |
+| Tabla Delta (memoria de sesión) | `workspace.finhive.conversation_sessions` | Continuidad de una misma conversación (`thread_id`) entre invocaciones separadas del proceso |
+| Tabla Delta (memoria de largo plazo) | `workspace.finhive.conversation_facts` | Hechos durables estilo MemGPT, compartidos entre conversaciones distintas |
 
 25 UC Functions registradas en total, los 5 dominios completos. Todas las tools de los 5
 dominios están envueltas con `finhive.tools.wrappers.safe_tool` (ADR 0007): errores de
@@ -51,4 +59,4 @@ red/rate-limit se devuelven como observación al LLM en vez de crashear el grafo
 Los 3 endpoints de FinHive tienen `usage_tracking_config` **y** `rate_limits` explícitos
 de AI Gateway (ADR 0008) — no solo el tracking default que Databricks aplica sin pedirlo.
 
-Ver `docs/architecture/adr/` (0001-0010) para el historial completo de estas decisiones.
+Ver `docs/architecture/adr/` (0001-0012) para el historial completo de estas decisiones.

@@ -22,7 +22,9 @@ from langgraph.types import Command
 
 from finhive.config.settings import get_router_chat_model
 from finhive.graph.state import FinHiveState
-from finhive.guardrails import input_guardrail_node, output_guardrail_node
+from finhive.guardrails.input_guardrail import input_guardrail_node
+from finhive.guardrails.output_guardrail import output_guardrail_node
+from finhive.memory.nodes import memory_recall_node, memory_remember_node
 
 # Cada entrada: nombre del equipo -> función que construye su grafo compilado.
 # Se instancian de forma perezosa (lazy) y se cachean, para no pagar el costo
@@ -193,22 +195,32 @@ def _make_team_node(team: str):
 def build_top_supervisor():
     """Compila el grafo jerárquico completo de FinHive.
 
-    El flujo real es `START -> input_guardrail -> supervisor -> (equipos) ->
-    supervisor -> ... -> output_guardrail -> END`. Los guardrails son nodos
-    propios (no una librería aparte, ver ADR 0011) que corren una única vez
-    cada uno por conversación: `input_guardrail` puede cortar directo a END
-    sin gastar ninguna llamada del supervisor si el pedido está fuera de
-    scope; `output_guardrail` es el paso obligatorio antes de terminar,
-    tanto si el supervisor decidió FINISH como si se cortó por
-    `_MAX_ITERATIONS`.
+    El flujo real es `START -> input_guardrail -> memory_recall -> supervisor
+    -> (equipos) -> supervisor -> ... -> output_guardrail -> memory_remember
+    -> END`. Los guardrails (ADR 0011) y la memoria (ADR 0012) son nodos
+    propios, no librerías aparte ni tools invocadas por el LLM: cada uno
+    corre una única vez por conversación. `input_guardrail` puede cortar
+    directo a END sin gastar ninguna llamada del supervisor ni tocar memoria
+    si el pedido está fuera de scope; `memory_recall` antepone el historial
+    del thread y los hechos de largo plazo antes de que el supervisor vea el
+    pedido; `output_guardrail` es el paso obligatorio antes de terminar
+    (tanto si el supervisor decidió FINISH como si se cortó por
+    `_MAX_ITERATIONS`); `memory_remember` persiste la conversación completa y
+    extrae un hecho durable, si lo hay, antes de terminar.
+
+    El `thread_id` que separa una conversación de otra viaja por
+    `config={"configurable": {"thread_id": ...}}` en el `.invoke()`, no por
+    los argumentos de esta función — mismo mecanismo estándar de LangGraph.
     """
     members = list(_TEAM_BUILDERS.keys())
 
     builder = StateGraph(FinHiveState)
     builder.add_node("input_guardrail", input_guardrail_node)
+    builder.add_node("memory_recall", memory_recall_node)
     builder.add_node("supervisor", _make_supervisor_node(members))
     for team in members:
         builder.add_node(team, _make_team_node(team))
     builder.add_node("output_guardrail", output_guardrail_node)
+    builder.add_node("memory_remember", memory_remember_node)
     builder.add_edge(START, "input_guardrail")
     return builder.compile()

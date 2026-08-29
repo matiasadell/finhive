@@ -32,6 +32,13 @@ EMBEDDING_ENDPOINT = "databricks-gte-large-en"
 AI_GATEWAY_ROUTER_MODEL = "workspace.finhive.finhive_router"
 AI_GATEWAY_EMBEDDINGS_MODEL = "workspace.finhive.finhive_embeddings"
 
+# --- SQL warehouse serverless, provisionado desde el arranque del proyecto ---
+# Backend real de la memoria persistente (ver ADR 0012): tablas Delta en
+# `workspace.finhive`, leídas/escritas vía la Statement Execution API contra
+# este warehouse — no Lakebase Postgres (Public Preview, sin confirmar si
+# Free Edition lo habilita gratis). "Serverless Starter Warehouse", 2X-Small.
+SQL_WAREHOUSE_ID = "1a9a12e190f307b2"
+
 
 def get_fred_api_key() -> str:
     """Lee FRED_API_KEY de env; falla explícito si no está configurada."""
