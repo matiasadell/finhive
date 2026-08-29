@@ -15,7 +15,7 @@ Databricks Apps).
 ## Arquitectura
 
 ```
-                         Top-Level Supervisor (Claude, vía AI Gateway)
+                         Top-Level Supervisor (Groq/Llama, vía AI Gateway)
                          router de complejidad: trivial / single- / multi-domain
                                           │
         ┌───────────┬──────────────┬─────┴────────┬──────────────┬───────────┐
@@ -42,7 +42,7 @@ implementada acá sobre un caso de uso financiero real.
 | Capa | Tecnología |
 |---|---|
 | Orquestación de agentes | LangGraph (+ `langgraph-supervisor`) |
-| LLM | Claude (Anthropic), registrado como External Model en Databricks Model Serving |
+| LLM | Groq (Llama 3.3/3.1), registrado como External Model (`custom` provider, OpenAI-compatible) en Databricks Model Serving |
 | Gateway / gobernanza | Databricks AI Gateway |
 | Vector search | Databricks Vector Search sobre Unity Catalog |
 | Almacenamiento / catálogo | Unity Catalog (tablas, volumes) |
@@ -79,7 +79,7 @@ obtenerlas (todas gratuitas o free-tier).
 - [x] Diseño de arquitectura y ADR
 - [x] Estructura de repo
 - [x] Infraestructura mínima de Databricks (schema, volume, vector search endpoint, secret scope)
-- [ ] Registrar Claude como External Model en AI Gateway (requiere `ANTHROPIC_API_KEY` del usuario)
+- [ ] Registrar Groq como External Model (custom provider) en AI Gateway (requiere `GROQ_API_KEY` del usuario)
 - [ ] Sub-supervisor de Macro
 - [ ] Sub-supervisor de Equity Research
 - [ ] Sub-supervisor de Portfolio & Risk

@@ -6,13 +6,15 @@ listo antes de correr el pipeline de agentes.
 
 Roadmap (fase de implementación, todavía no escrito):
 
-- `setup_catalog.py` — crea el catalog `finhive` y los schemas `raw`/`agents`, idempotente.
-- `setup_vector_search.py` — crea el endpoint único de Vector Search y el índice
-  consolidado (con columna `domain` para filtrar por macro/equity/news/crypto/portfolio).
-- `setup_secrets.py` — crea el secret scope de Databricks; nunca imprime valores, lee
+- `setup_catalog.py` — crea/valida el schema `workspace.finhive` y el volume
+  `workspace.finhive.docs`, idempotente (ver "Estado actual" abajo, ya provisionado).
+- `setup_vector_search.py` — crea el índice consolidado sobre `finhive_vs_endpoint`
+  (con columna `domain` para filtrar por macro/equity/news/crypto/portfolio).
+- `setup_secrets.py` — carga secrets al scope `finhive`; nunca imprime valores, lee
   desde un archivo local no trackeado o pide input interactivo vía la CLI.
-- `register_external_model.py` — registra Claude (Anthropic) como External Model en
-  Databricks Model Serving, gobernado por AI Gateway.
+- `register_external_model.py` — registra Groq (provider `custom`, API OpenAI-compatible
+  en `https://api.groq.com/openai/v1`) como External Model en Databricks Model Serving,
+  gobernado por AI Gateway. Ver ADR 0002 (`docs/architecture/adr/`).
 
 ## Estado actual (infraestructura mínima ya provisionada)
 
