@@ -1,6 +1,7 @@
 # ADR 0009 — Model routing real vía Unity AI Gateway (`finhive_router`)
 
-- **Estado**: aceptado (capacidad verificada, integración a `src/finhive` pendiente)
+- **Estado**: superado por ADR 0010 — la integración que acá quedaba como "pendiente" ya
+  está hecha (usando `langchain_openai.ChatOpenAI` en vez de esperar a `databricks-langchain`)
 - **Fecha**: 2026-08-29
 
 ## Contexto

@@ -51,6 +51,15 @@ os.environ["ALPHA_VANTAGE_API_KEY"] = dbutils.secrets.get(scope="finhive", key="
 os.environ["TAVILY_API_KEY"] = dbutils.secrets.get(scope="finhive", key="tavily_api_key")
 os.environ["SEC_EDGAR_USER_AGENT"] = "FinHive research-agent matiasadell@hotmail.com"
 
+# El top-level supervisor pasa por Unity AI Gateway (routing real entre dos
+# modelos, ver ADR 0009/0010) vía un cliente OpenAI-compatible, que necesita
+# host + token. Acá, en vez de un secret estático, se usa el contexto propio
+# de esta ejecución del notebook -- un token de corta duración, sin
+# necesidad de generar ni guardar ningún PAT.
+_ctx = dbutils.notebook.entry_point.getDbutils().notebook().getContext()
+os.environ["DATABRICKS_HOST"] = _ctx.apiUrl().get()
+os.environ["DATABRICKS_TOKEN"] = _ctx.apiToken().get()
+
 print("Credenciales cargadas en el entorno (valores no impresos).")
 
 # COMMAND ----------
@@ -84,7 +93,29 @@ def ask(question: str) -> None:
 
 # COMMAND ----------
 
-# MAGIC %md ## 4. Una pregunta por dominio
+# MAGIC %md ## 4. Unity AI Gateway: model routing real (bonus)
+# MAGIC
+# MAGIC El supervisor raíz de arriba ya usa esto por dentro (`get_router_chat_model`),
+# MAGIC pero acá se ve explícito: el `model-service` `workspace.finhive.finhive_router`
+# MAGIC reparte tráfico 70% Llama 3.3 70B / 30% GPT OSS 120B — correr esta celda varias
+# MAGIC veces y mirar el campo `modelo real usado` para verlo variar.
+
+# COMMAND ----------
+
+from finhive.config.settings import get_gateway_embeddings, get_router_chat_model
+
+router_llm = get_router_chat_model()
+for _ in range(4):
+    resp = router_llm.invoke("Respondé con una sola palabra: OK")
+    print("modelo real usado:", resp.response_metadata.get("model_name"))
+
+embeddings = get_gateway_embeddings()
+vector = embeddings.embed_query("ejemplo de texto financiero")
+print(f"\nEmbeddings (workspace.finhive.finhive_embeddings): vector de {len(vector)} dimensiones")
+
+# COMMAND ----------
+
+# MAGIC %md ## 5. Una pregunta por dominio
 
 # COMMAND ----------
 
@@ -108,7 +139,7 @@ ask("¿Cuál es el precio actual de Bitcoin?")
 
 # COMMAND ----------
 
-# MAGIC %md ## 5. Una pregunta que cruza dos dominios
+# MAGIC %md ## 6. Una pregunta que cruza dos dominios
 # MAGIC
 # MAGIC El router del top-level supervisor tiene que decidir delegar a los dos equipos
 # MAGIC correspondientes, uno por vez (ver ADR 0005 y ADR 0006 sobre cómo se afinó este
@@ -122,7 +153,7 @@ ask(
 
 # COMMAND ----------
 
-# MAGIC %md ## 6. Ver las trazas en MLflow
+# MAGIC %md ## 7. Ver las trazas en MLflow
 # MAGIC
 # MAGIC `mlflow.langchain.autolog()` ya quedó activo desde la celda 3 — cada invocación
 # MAGIC de arriba generó una traza completa (cada nodo del grafo, cada tool call, cada

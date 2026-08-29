@@ -25,6 +25,13 @@ SUPERVISOR_MODEL_ENDPOINT = "databricks-meta-llama-3-3-70b-instruct"
 WORKER_MODEL_ENDPOINT = "databricks-meta-llama-3-1-8b-instruct"
 EMBEDDING_ENDPOINT = "databricks-gte-large-en"
 
+# --- Unity AI Gateway: model services con routing real (ver ADR 0009) ---
+# A diferencia de los endpoints de arriba (servidos vía ChatDatabricks, path
+# clásico /serving-endpoints/), estos son "model services" de Unity Catalog,
+# consumidos vía el cliente OpenAI-compatible contra /ai-gateway/mlflow/v1.
+AI_GATEWAY_ROUTER_MODEL = "workspace.finhive.finhive_router"
+AI_GATEWAY_EMBEDDINGS_MODEL = "workspace.finhive.finhive_embeddings"
+
 
 def get_fred_api_key() -> str:
     """Lee FRED_API_KEY de env; falla explícito si no está configurada."""
@@ -77,6 +84,84 @@ def get_tavily_api_key() -> str:
             "https://tavily.com y ponela en tu .env."
         )
     return key
+
+
+def get_databricks_host() -> str:
+    """Lee DATABRICKS_HOST de env; falla explícito si no está configurada."""
+    host = os.getenv("DATABRICKS_HOST", "").strip()
+    if not host:
+        raise RuntimeError(
+            "DATABRICKS_HOST no está seteada. Es la URL de tu workspace "
+            "(ej. https://dbc-xxxxxxxx-xxxx.cloud.databricks.com), necesaria "
+            "para el cliente OpenAI-compatible contra AI Gateway."
+        )
+    return host
+
+
+def get_databricks_token() -> str:
+    """Lee DATABRICKS_TOKEN de env; falla explícito si no está configurada.
+
+    A diferencia del resto del proyecto (que usa OAuth vía
+    DATABRICKS_CONFIG_PROFILE, sin token estático), el cliente OpenAI-
+    compatible de AI Gateway necesita un Bearer token fijo — un Personal
+    Access Token de Databricks. Generar uno con
+    `databricks tokens create --lifetime-seconds <segundos>` y guardarlo acá,
+    nunca en texto plano en ningún otro lado.
+    """
+    token = os.getenv("DATABRICKS_TOKEN", "").strip()
+    if not token:
+        raise RuntimeError(
+            "DATABRICKS_TOKEN no está seteada. Generá un Personal Access "
+            "Token con `databricks tokens create` y ponelo en tu .env — lo "
+            "necesita el cliente OpenAI-compatible contra AI Gateway."
+        )
+    return token
+
+
+def get_router_chat_model(temperature: float = 0.1):
+    """Instancia un `ChatOpenAI` apuntando al model service con routing real.
+
+    A diferencia de `get_chat_model`, que pega directo a un único endpoint
+    de Databricks vía `ChatDatabricks`, esto pasa por el Unity AI Gateway
+    (`/ai-gateway/mlflow/v1`) y el tráfico se reparte según la config de
+    `AI_GATEWAY_ROUTER_MODEL` (hoy: 70% Llama 3.3 70B / 30% GPT OSS 120B —
+    ver ADR 0009). Usado por el top-level supervisor, el nodo más crítico
+    del sistema, para que se beneficie de resiliencia real a la degradación
+    de un único modelo.
+    """
+    from langchain_openai import ChatOpenAI
+
+    return ChatOpenAI(
+        model=AI_GATEWAY_ROUTER_MODEL,
+        openai_api_key=get_databricks_token(),
+        openai_api_base=f"{get_databricks_host()}/ai-gateway/mlflow/v1",
+        temperature=temperature,
+    )
+
+
+def get_gateway_embeddings():
+    """Instancia un `OpenAIEmbeddings` apuntando al model service de embeddings.
+
+    Igual que `get_router_chat_model`, pasa por Unity AI Gateway en vez de
+    pegarle directo al serving endpoint — mismo gobierno (rate limits,
+    tracking) que el resto de los model services. Todavía no está en uso
+    activo (Vector Search de FinHive no tiene índice creado aún), pero deja
+    lista la conexión para cuando se implemente RAG.
+    """
+    from langchain_openai import OpenAIEmbeddings
+
+    return OpenAIEmbeddings(
+        model=AI_GATEWAY_EMBEDDINGS_MODEL,
+        openai_api_key=get_databricks_token(),
+        openai_api_base=f"{get_databricks_host()}/ai-gateway/mlflow/v1",
+        # Sin esto, OpenAIEmbeddings pre-tokeniza (con tiktoken o, si eso se
+        # desactiva, con transformers) asumiendo un modelo real de OpenAI, y
+        # manda arrays de token IDs en vez de texto plano -- AI Gateway lo
+        # rechaza con 400 BAD_REQUEST para un modelo que no es de OpenAI
+        # (acá, GTE Large de Databricks). check_embedding_ctx_length=False
+        # salta ese codepath entero y manda el string tal cual.
+        check_embedding_ctx_length=False,
+    )
 
 
 def get_chat_model(tier: Literal["supervisor", "worker"], temperature: float = 0.1):

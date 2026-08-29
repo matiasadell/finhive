@@ -20,7 +20,7 @@ from langchain_core.messages import HumanMessage
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command
 
-from finhive.config.settings import get_chat_model
+from finhive.config.settings import get_router_chat_model
 from finhive.graph.state import FinHiveState
 
 # Cada entrada: nombre del equipo -> función que construye su grafo compilado.
@@ -130,6 +130,11 @@ def _make_supervisor_node(members: list[str]):
     real era 2026) en vez de admitir que no tenía el dato. Se agregaron
     descripciones por equipo, con líneas explícitas de "esto NO es de este
     equipo" en los casos de frontera conocidos, para desambiguar.
+
+    El modelo de este nodo (el más crítico de todo el grafo: decide a qué
+    equipo delegar cada turno) usa `get_router_chat_model()` — pasa por el
+    Unity AI Gateway con routing real entre dos modelos (ver ADR 0009/0010),
+    en vez del endpoint único que usan los sub-supervisores de dominio.
     """
     options = ["FINISH", *members]
     team_lines = "\n".join(f"- {m}: {_TEAM_DESCRIPTIONS.get(m, '')}" for m in members)
@@ -148,7 +153,7 @@ def _make_supervisor_node(members: list[str]):
         "no de asesoramiento financiero."
     )
 
-    llm = get_chat_model("supervisor")
+    llm = get_router_chat_model()
     structured_llm = llm.with_structured_output(_Router)
 
     def supervisor_node(state: FinHiveState) -> Command[Literal[*members, "__end__"]]:

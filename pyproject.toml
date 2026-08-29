@@ -12,6 +12,7 @@ dependencies = [
     "langgraph-supervisor>=0.0.9",
     "langchain>=0.3",
     "langchain-community>=0.3",
+    "langchain-openai>=0.2",
     "databricks-langchain>=0.3",
     "databricks-sdk>=0.30",
     "databricks-vectorsearch>=0.40",
@@ -42,6 +43,12 @@ packages = ["src/finhive"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+
+[tool.ruff.lint.per-file-ignores]
+# dbutils/spark/display son globals que Databricks inyecta en tiempo de
+# ejecución de un notebook -- ruff no los conoce fuera de Databricks, pero
+# son válidos ahí. F821 = undefined name.
+"notebooks/*.py" = ["F821"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

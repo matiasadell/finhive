@@ -32,7 +32,7 @@ externa, mismo nivel de gobernanza vía AI Gateway.
 | Schema | `workspace.finhive` | Namespace del proyecto dentro del catalog |
 | Volume | `workspace.finhive.docs` | Managed volume para el corpus crudo del RAG |
 | Vector Search endpoint | `finhive_vs_endpoint` | Tipo `STANDARD`, estado `ONLINE`. Sin índices todavía — se crean junto con la ingesta real |
-| Secret scope | `finhive` | `fred_api_key`, `alpha_vantage_api_key`, `tavily_api_key` cargados — usados por `notebooks/00_demo.py` vía `dbutils.secrets` |
+| Secret scope | `finhive` | `fred_api_key`, `alpha_vantage_api_key`, `tavily_api_key`, `databricks_token` cargados — usados por `notebooks/00_demo.py` vía `dbutils.secrets` (el notebook usa el token de su propia ejecución para AI Gateway, no `databricks_token`) |
 | LLM — supervisores | `databricks-meta-llama-3-3-70b-instruct` (`system.ai.llama_v3_3_70b_instruct`) | `READY`. AI Gateway: rate limit 30 calls/usuario/min (ADR 0008) |
 | LLM — workers | `databricks-meta-llama-3-1-8b-instruct` (`system.ai.meta_llama_v3_1_8b_instruct`) | `READY`. AI Gateway: rate limit 60 calls/usuario/min (ADR 0008) |
 | Embeddings — Vector Search | `databricks-gte-large-en` (`system.ai.gte_large_en_v1_5`) | `READY`. AI Gateway: rate limit 60 calls/usuario/min (ADR 0008) |
@@ -41,7 +41,8 @@ externa, mismo nivel de gobernanza vía AI Gateway.
 | UC Functions (Portfolio & Risk) | `calculate_portfolio_volatility`, `calculate_portfolio_var`, `calculate_correlation_matrix`, `calculate_sharpe_ratio`, `add_numbers`, `multiply_numbers`, `divide_numbers` | Ídem — cómputo propio con numpy/pandas, no solo passthrough a una API |
 | UC Functions (News & Sentiment) | `get_stock_news_sentiment`, `get_market_news_sentiment`, `get_earnings_calendar`, `web_search_news` | Ídem — Alpha Vantage (sentiment/calendario) + Tavily (fallback web estilo CRAG) |
 | UC Functions (Crypto & Alt) | `search_crypto_id`, `get_crypto_price`, `get_crypto_price_history`, `get_trending_crypto`, `get_top_crypto_by_market_cap` | Ídem — CoinGecko, API pública sin key |
-| Model service (routing) | `model-services/workspace.finhive.finhive_router` | Unity AI Gateway *Beta*: routing real 70% `llama_v3_3_70b_instruct` / 30% `gpt-oss-120b`, verificado empíricamente. No integrado a `src/finhive` todavía — `databricks-langchain` no soporta el path nuevo (ver ADR 0009) |
+| Model service (routing) | `model-services/workspace.finhive.finhive_router` | Unity AI Gateway *Beta*: routing real 70% `llama_v3_3_70b_instruct` / 30% `gpt-oss-120b`. **Integrado**: modelo del top-level supervisor vía `get_router_chat_model()` (`langchain_openai.ChatOpenAI` contra `/ai-gateway/mlflow/v1`, ver ADR 0010) |
+| Model service (embeddings) | `model-services/workspace.finhive.finhive_embeddings` | Unity AI Gateway *Beta*: 100% `gte_large_en_v1_5`. Disponible vía `get_gateway_embeddings()`, sin uso activo todavía (RAG/Vector Search pendiente) |
 
 25 UC Functions registradas en total, los 5 dominios completos. Todas las tools de los 5
 dominios están envueltas con `finhive.tools.wrappers.safe_tool` (ADR 0007): errores de
@@ -50,4 +51,4 @@ red/rate-limit se devuelven como observación al LLM en vez de crashear el grafo
 Los 3 endpoints de FinHive tienen `usage_tracking_config` **y** `rate_limits` explícitos
 de AI Gateway (ADR 0008) — no solo el tracking default que Databricks aplica sin pedirlo.
 
-Ver `docs/architecture/adr/` (0001-0009) para el historial completo de estas decisiones.
+Ver `docs/architecture/adr/` (0001-0010) para el historial completo de estas decisiones.
