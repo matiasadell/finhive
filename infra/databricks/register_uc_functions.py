@@ -36,6 +36,13 @@ def register_functions(functions: list[Callable]) -> None:
 
 
 def main() -> None:
+    from finhive.tools.crypto_data import (
+        get_crypto_price,
+        get_crypto_price_history,
+        get_top_crypto_by_market_cap,
+        get_trending_crypto,
+        search_crypto_id,
+    )
     from finhive.tools.equity_data import (
         calculate_sma,
         get_sec_company_facts,
@@ -87,6 +94,11 @@ def main() -> None:
             get_market_news_sentiment,
             get_earnings_calendar,
             web_search_news,
+            search_crypto_id,
+            get_crypto_price,
+            get_crypto_price_history,
+            get_trending_crypto,
+            get_top_crypto_by_market_cap,
         ]
     )
 

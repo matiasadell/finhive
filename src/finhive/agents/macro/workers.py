@@ -18,6 +18,7 @@ from finhive.tools.macro_data import (
     get_fred_series_latest,
     search_fred_series,
 )
+from finhive.tools.wrappers import safe_tool
 
 
 def _macro_tools() -> list:
@@ -34,9 +35,9 @@ def _macro_tools() -> list:
     frágil además de la latencia/cuota de cómputo serverless.
     """
     return [
-        tool(search_fred_series),
-        tool(get_fred_series_latest),
-        tool(get_fred_series_history),
+        tool(safe_tool(search_fred_series)),
+        tool(safe_tool(get_fred_series_latest)),
+        tool(safe_tool(get_fred_series_history)),
     ]
 
 

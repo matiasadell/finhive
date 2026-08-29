@@ -5,9 +5,10 @@ bootcamp: cada equipo de dominio es un subgrafo compilado, invocado desde un
 nodo del grafo superior; el supervisor raíz decide, con structured output, a
 qué equipo rutear cada turno, hasta que decide FINISH.
 
-Equipos reales hoy: `macro`, `equity`, `portfolio_risk`, `news_sentiment`.
-Agregar crypto_alt es: (1) construir su sub-supervisor igual que
-`finhive.agents.macro`, (2) sumarlo a `_TEAM_BUILDERS` acá abajo. El resto
+Los 5 dominios del plan original ya son equipos reales: `macro`, `equity`,
+`portfolio_risk`, `news_sentiment`, `crypto_alt`. Sumar un dominio nuevo es:
+(1) construir su sub-supervisor igual que `finhive.agents.macro`, (2)
+sumarlo a `_TEAM_BUILDERS` y `_TEAM_DESCRIPTIONS` acá abajo. El resto
 (routing, síntesis) ya generaliza solo.
 """
 
@@ -48,8 +49,9 @@ def _register_equity_team() -> None:
     _TEAM_BUILDERS["equity"] = build_equity_supervisor
     _TEAM_DESCRIPTIONS["equity"] = (
         "fundamentals, valuación (P/E, EPS), análisis técnico y filings YA "
-        "REPORTADOS de una empresa (10-K/10-Q pasados). NO calendario de "
-        "próximos earnings — eso es news_sentiment."
+        "REPORTADOS de una empresa cotizante en bolsa (acciones, ej. AAPL, "
+        "10-K/10-Q pasados). NO calendario de próximos earnings — eso es "
+        "news_sentiment. NO criptomonedas — eso es crypto_alt."
     )
 
 
@@ -72,10 +74,21 @@ def _register_news_sentiment_team() -> None:
     )
 
 
+def _register_crypto_alt_team() -> None:
+    from finhive.agents.crypto_alt import build_crypto_alt_supervisor
+
+    _TEAM_BUILDERS["crypto_alt"] = build_crypto_alt_supervisor
+    _TEAM_DESCRIPTIONS["crypto_alt"] = (
+        "precio, tendencias y ranking de CRIPTOMONEDAS (Bitcoin, Ethereum, "
+        "etc.) — NO acciones/equities, eso es equity."
+    )
+
+
 _register_macro_team()
 _register_equity_team()
 _register_portfolio_risk_team()
 _register_news_sentiment_team()
+_register_crypto_alt_team()
 
 _team_graph_cache: dict[str, object] = {}
 

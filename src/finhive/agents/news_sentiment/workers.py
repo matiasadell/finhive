@@ -17,14 +17,15 @@ from finhive.tools.news_data import (
     get_stock_news_sentiment,
     web_search_news,
 )
+from finhive.tools.wrappers import safe_tool
 
 
 def _news_tools() -> list:
     return [
-        tool(get_stock_news_sentiment),
-        tool(get_market_news_sentiment),
-        tool(get_earnings_calendar),
-        tool(web_search_news),
+        tool(safe_tool(get_stock_news_sentiment)),
+        tool(safe_tool(get_market_news_sentiment)),
+        tool(safe_tool(get_earnings_calendar)),
+        tool(safe_tool(web_search_news)),
     ]
 
 

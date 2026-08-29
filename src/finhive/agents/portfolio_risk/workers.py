@@ -21,17 +21,18 @@ from finhive.tools.portfolio_math import (
     divide_numbers,
     multiply_numbers,
 )
+from finhive.tools.wrappers import safe_tool
 
 
 def _portfolio_tools() -> list:
     return [
-        tool(calculate_portfolio_volatility),
-        tool(calculate_portfolio_var),
-        tool(calculate_correlation_matrix),
-        tool(calculate_sharpe_ratio),
-        tool(add_numbers),
-        tool(multiply_numbers),
-        tool(divide_numbers),
+        tool(safe_tool(calculate_portfolio_volatility)),
+        tool(safe_tool(calculate_portfolio_var)),
+        tool(safe_tool(calculate_correlation_matrix)),
+        tool(safe_tool(calculate_sharpe_ratio)),
+        tool(safe_tool(add_numbers)),
+        tool(safe_tool(multiply_numbers)),
+        tool(safe_tool(divide_numbers)),
     ]
 
 

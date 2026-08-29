@@ -9,8 +9,9 @@ Databricks Apps).
 > ⚠️ **Este proyecto es una herramienta de research/análisis, no asesoramiento financiero
 > ni ejecución de trades reales.** Ver guardrails y disclaimers en `src/finhive/guardrails/`.
 
-> 🚧 **Estado**: en construcción. Este README describe la arquitectura objetivo; el
-> checklist de abajo indica qué está implementado hoy.
+> 🚧 **Estado**: los 5 dominios y el supervisor jerárquico completo ya funcionan
+> end-to-end contra Databricks real (ver checklist abajo). Falta guardrails, memoria
+> persistente, evaluación formal, demo desplegada y el artículo técnico.
 
 ## Arquitectura
 
@@ -27,14 +28,16 @@ Databricks Apps).
 Cada worker sigue el patrón ReAct; cada sub-supervisor compone sus workers como un
 sub-grafo de LangGraph; el supervisor raíz compone los cinco sub-grafos ("Hierarchical
 Agent Teams"). El detalle completo de decisiones de arquitectura está en
-[`docs/architecture/adr/`](docs/architecture/adr/) (ADRs 0001-0006), incluyendo un mapa
+[`docs/architecture/adr/`](docs/architecture/adr/) (ADRs 0001-0007), incluyendo un mapa
 explícito de qué concepto de arquitectura agéntica (ReAct, Reflexion, Self-RAG/CRAG,
 RAPTOR, Adaptive-RAG, Mixture-of-Agents, MCP, LLM Gateway, etc.) se aplica en qué parte
 del sistema — MCP, por ejemplo, se resuelve como Unity Catalog Functions gobernadas
 (ADR 0004), no como los Managed MCP servers de Databricks (que facturan por invocación).
-El supervisor raíz ya compone equipos de dominio de verdad (ADR 0005), con un límite duro
-de iteraciones como salvaguarda de cuota y descripciones explícitas por equipo para
-desambiguar preguntas de frontera (ADR 0006).
+El supervisor raíz ya compone los 5 equipos de dominio de verdad (ADR 0005), con un
+límite duro de iteraciones como salvaguarda de cuota, descripciones explícitas por equipo
+para desambiguar preguntas de frontera (ADR 0006), y todas las tools envueltas en un
+wrapper defensivo que convierte errores de red/rate-limit en observaciones en vez de
+crashear el grafo (ADR 0007).
 
 Este proyecto nació de una investigación teórica propia sobre arquitecturas agénticas —
 ver [`docs/theory/main.pdf`](docs/theory/main.pdf) (timeline de 24 arquitecturas, 2020-2026)
@@ -85,11 +88,12 @@ obtenerlas (todas gratuitas o free-tier).
 - [x] Infraestructura mínima de Databricks (schema, volume, vector search endpoint, secret scope)
 - [x] LLM: Foundation Model APIs nativos de Databricks verificados en vivo (Llama 3.3 70B / 3.1 8B), sin key externa
 - [x] Sub-supervisor de Macro (3 workers ReAct + supervisor, tools sobre FRED registradas en Unity Catalog)
-- [x] Top-level supervisor + composición jerárquica (4/5 dominios, verificado end-to-end)
+- [x] Top-level supervisor + composición jerárquica (**5/5 dominios**, verificado end-to-end)
 - [x] Sub-supervisor de Equity Research (fundamentals/técnico/filings, tools sobre yfinance + SEC EDGAR)
 - [x] Sub-supervisor de Portfolio & Risk (volatilidad/VaR/correlación/Sharpe, cómputo propio con numpy/pandas)
 - [x] Sub-supervisor de News & Sentiment (noticias/sentimiento vía Alpha Vantage, calendario de earnings, fallback web vía Tavily)
-- [ ] Sub-supervisor de Crypto & Alt
+- [x] Sub-supervisor de Crypto & Alt (precio/tendencias/ranking vía CoinGecko, sin key)
+- [x] Tools defensivas: errores de red/rate-limit no crashean el grafo (ADR 0007)
 - [ ] Guardrails y memoria persistente
 - [ ] Evaluación (MLflow + LangSmith)
 - [ ] Demo Streamlit desplegada

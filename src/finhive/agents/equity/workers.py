@@ -21,16 +21,17 @@ from finhive.tools.equity_data import (
     get_stock_quote,
     search_sec_filings,
 )
+from finhive.tools.wrappers import safe_tool
 
 
 def _equity_tools() -> list:
     return [
-        tool(get_stock_quote),
-        tool(get_stock_fundamentals),
-        tool(get_stock_price_history),
-        tool(calculate_sma),
-        tool(search_sec_filings),
-        tool(get_sec_company_facts),
+        tool(safe_tool(get_stock_quote)),
+        tool(safe_tool(get_stock_fundamentals)),
+        tool(safe_tool(get_stock_price_history)),
+        tool(safe_tool(calculate_sma)),
+        tool(safe_tool(search_sec_filings)),
+        tool(safe_tool(get_sec_company_facts)),
     ]
 
 
