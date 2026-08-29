@@ -1,0 +1,130 @@
+# Databricks notebook source
+# MAGIC %md
+# MAGIC # FinHive — Demo interactiva
+# MAGIC
+# MAGIC Corre el sistema jerárquico completo (top-level supervisor → 5 supervisores de
+# MAGIC dominio → 13 workers ReAct) directamente en un notebook de Databricks, contra
+# MAGIC los Foundation Model APIs nativos (gratis en Free Edition) y las APIs de datos
+# MAGIC reales de cada dominio.
+# MAGIC
+# MAGIC **Antes de correr esto**: las keys de FRED / Alpha Vantage / Tavily ya están
+# MAGIC cargadas en el secret scope `finhive` (`databricks secrets list-secrets finhive`
+# MAGIC para confirmar). SEC EDGAR, yfinance y CoinGecko no necesitan key.
+# MAGIC
+# MAGIC **Ojo con la cuota**: Alpha Vantage (News & Sentiment) tiene free tier chico
+# MAGIC (~25 requests/día) y CoinGecko (Crypto) rate-limitea uso anónimo intensivo — no
+# MAGIC hace falta correr las 6 celdas de prueba muchas veces seguidas.
+
+# COMMAND ----------
+
+# MAGIC %md ## 1. Instalar el paquete (modo editable, desde este mismo Repo)
+
+# COMMAND ----------
+
+# Ruta del Repo en este workspace. Si clonaste el repo en otro path, ajustar acá.
+REPO_PATH = "/Workspace/Users/matiasadell@hotmail.com/finhive"
+
+# COMMAND ----------
+
+# MAGIC %pip install -e {REPO_PATH}
+
+# COMMAND ----------
+
+dbutils.library.restartPython()
+
+# COMMAND ----------
+
+# MAGIC %md ## 2. Credenciales — desde Databricks Secrets, no desde un `.env`
+# MAGIC
+# MAGIC En local, `finhive.config.settings` lee estas keys de variables de entorno
+# MAGIC (cargadas desde `.env` con `python-dotenv`). Acá no hay `.env` — se cargan las
+# MAGIC mismas variables de entorno, pero con el valor real leído de forma nativa desde
+# MAGIC el secret scope de Databricks (`dbutils.secrets.get`), nunca hardcodeado ni
+# MAGIC impreso en ninguna celda.
+
+# COMMAND ----------
+
+import os
+
+os.environ["FRED_API_KEY"] = dbutils.secrets.get(scope="finhive", key="fred_api_key")
+os.environ["ALPHA_VANTAGE_API_KEY"] = dbutils.secrets.get(scope="finhive", key="alpha_vantage_api_key")
+os.environ["TAVILY_API_KEY"] = dbutils.secrets.get(scope="finhive", key="tavily_api_key")
+os.environ["SEC_EDGAR_USER_AGENT"] = "FinHive research-agent matiasadell@hotmail.com"
+
+print("Credenciales cargadas en el entorno (valores no impresos).")
+
+# COMMAND ----------
+
+# MAGIC %md ## 3. Armar el grafo jerárquico completo
+
+# COMMAND ----------
+
+import mlflow
+import mlflow.langchain
+
+mlflow.langchain.autolog()
+
+from finhive.graph import build_top_supervisor
+
+graph = build_top_supervisor()
+print("Grafo jerárquico compilado: 5 equipos de dominio listos.")
+
+# COMMAND ----------
+
+
+def ask(question: str) -> None:
+    """Invoca el supervisor raíz y muestra qué equipos respondieron y la respuesta final."""
+    result = graph.invoke({"messages": [("user", question)]})
+    teams = [m.name for m in result["messages"] if getattr(m, "name", None) and str(m.name).endswith("_team")]
+    print(f"Pregunta: {question}")
+    print(f"Equipos invocados: {teams}")
+    print(f"Respuesta:\n{result['messages'][-1].content}")
+    print("-" * 80)
+
+
+# COMMAND ----------
+
+# MAGIC %md ## 4. Una pregunta por dominio
+
+# COMMAND ----------
+
+ask("¿Cuál es la tasa de fondos federales actual según FRED?")
+
+# COMMAND ----------
+
+ask("¿Cuál es el P/E actual de Apple (AAPL)?")
+
+# COMMAND ----------
+
+ask("¿Cuál es la volatilidad anualizada de un portfolio 50% AAPL y 50% MSFT en los últimos 6 meses?")
+
+# COMMAND ----------
+
+ask("¿Cuándo es el próximo reporte de earnings de Apple (AAPL)?")
+
+# COMMAND ----------
+
+ask("¿Cuál es el precio actual de Bitcoin?")
+
+# COMMAND ----------
+
+# MAGIC %md ## 5. Una pregunta que cruza dos dominios
+# MAGIC
+# MAGIC El router del top-level supervisor tiene que decidir delegar a los dos equipos
+# MAGIC correspondientes, uno por vez (ver ADR 0005 y ADR 0006 sobre cómo se afinó este
+# MAGIC comportamiento).
+
+# COMMAND ----------
+
+ask(
+    "¿Cuál es la tasa de fondos federales actual, y cuál es el P/E de Apple (AAPL)?"
+)
+
+# COMMAND ----------
+
+# MAGIC %md ## 6. Ver las trazas en MLflow
+# MAGIC
+# MAGIC `mlflow.langchain.autolog()` ya quedó activo desde la celda 3 — cada invocación
+# MAGIC de arriba generó una traza completa (cada nodo del grafo, cada tool call, cada
+# MAGIC llamada al LLM). Abrí la pestaña **Experiments** de este notebook, o el panel de
+# MAGIC **Traces** en MLflow, para inspeccionarlas.
