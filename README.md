@@ -78,7 +78,8 @@ obtenerlas (todas gratuitas o free-tier).
 
 - [x] Diseño de arquitectura y ADR
 - [x] Estructura de repo
-- [ ] Setup de infraestructura Databricks (catalog, vector search, secrets, external model)
+- [x] Infraestructura mínima de Databricks (schema, volume, vector search endpoint, secret scope)
+- [ ] Registrar Claude como External Model en AI Gateway (requiere `ANTHROPIC_API_KEY` del usuario)
 - [ ] Sub-supervisor de Macro
 - [ ] Sub-supervisor de Equity Research
 - [ ] Sub-supervisor de Portfolio & Risk

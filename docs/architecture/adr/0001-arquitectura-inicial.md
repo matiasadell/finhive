@@ -61,6 +61,17 @@ concreto en la arquitectura — no son referencias decorativas, son decisiones d
 | Guardrails (Summary.pdf §18) | `src/finhive/guardrails/`: tópico, seguridad, groundedness, jailbreak |
 | LLM-as-judge / evaluación (Summary.pdf §20) | MLflow Evaluate + LangSmith |
 
+## Nota de implementación: catalog vs. schema en Unity Catalog
+
+El plan original preveía un catalog `finhive` dedicado. En la práctica, `databricks
+catalogs create` en Free Edition exige un `storage_root` explícito que solo la UI
+autocompleta vía "Default Storage" a nivel de metastore — la CLI no puede generarlo. En
+vez de bloquear el setup en eso, se usó el catalog `workspace` ya existente y se creó el
+namespace del proyecto como schema: `workspace.finhive`, con el volume
+`workspace.finhive.docs` para el corpus del RAG y el secret scope `finhive` (vacío). El
+endpoint único de Vector Search se creó como `finhive_vs_endpoint` (tipo `STANDARD`,
+`ONLINE`). Ver `infra/databricks/README.md` para el estado completo de recursos.
+
 ## Consecuencias
 
 - El índice único de Vector Search obliga a diseñar bien el esquema de metadata

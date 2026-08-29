@@ -14,5 +14,15 @@ Roadmap (fase de implementación, todavía no escrito):
 - `register_external_model.py` — registra Claude (Anthropic) como External Model en
   Databricks Model Serving, gobernado por AI Gateway.
 
-El estado de la infraestructura mínima (catalog/schema/volume base) se documenta en
-`docs/architecture/adr/0001-arquitectura-inicial.md`.
+## Estado actual (infraestructura mínima ya provisionada)
+
+| Recurso | Nombre | Notas |
+|---|---|---|
+| Catalog | `workspace` (existente) | Free Edition no permite crear catalogs nuevos vía CLI sin un storage root pre-provisionado por la UI (Default Storage); se usa el catalog `workspace` ya existente en vez de uno dedicado |
+| Schema | `workspace.finhive` | Namespace del proyecto dentro del catalog |
+| Volume | `workspace.finhive.docs` | Managed volume para el corpus crudo del RAG |
+| Vector Search endpoint | `finhive_vs_endpoint` | Tipo `STANDARD`, estado `ONLINE`. Sin índices todavía — se crean junto con la ingesta real |
+| Secret scope | `finhive` | Creado vacío; los valores se cargan con `databricks secrets put-secret` cuando el usuario tenga cada key, nunca pegados en un chat |
+
+Ver `docs/architecture/adr/0001-arquitectura-inicial.md` para el detalle de por qué se
+usó `workspace.finhive` en vez de un catalog `finhive` dedicado.
