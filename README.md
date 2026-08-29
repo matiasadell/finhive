@@ -108,7 +108,16 @@ por cada uno de los 5 dominios más una pregunta cross-domain.
 - [ ] Guardrails y memoria persistente
 - [ ] Evaluación (MLflow + LangSmith)
 - [ ] Demo Streamlit desplegada
-- [ ] Artículo técnico (`docs/writeup/`)
+- [x] Artículo técnico end-to-end (`docs/latex/finhive_article.tex`) + presentación LinkedIn (`docs/latex/finhive_presentation.tex`)
+
+## Documentación
+
+- [`docs/latex/finhive_article.tex`](docs/latex/finhive_article.tex) — artículo técnico completo
+  (arquitectura, mapa teoría→implementación, hallazgos y bugs reales de las 10 ADRs, resultados,
+  trabajo futuro). Compila a `finhive_article.pdf` con `pdflatex` (dos pasadas).
+- [`docs/latex/finhive_presentation.tex`](docs/latex/finhive_presentation.tex) — presentación
+  Beamer (12 slides) pensada para publicar en LinkedIn, mismo contenido condensado a formato
+  visual. Compila a `finhive_presentation.pdf`.
 
 ## Autor
 

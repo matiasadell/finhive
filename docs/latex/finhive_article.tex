@@ -1,0 +1,519 @@
+\documentclass[11pt]{article}
+\usepackage{cmap}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish]{babel}
+\usepackage[margin=2.7cm]{geometry}
+\usepackage{graphicx}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,fit,backgrounds}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{amsfonts}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue!50!black,
+    urlcolor=blue!50!black,
+    citecolor=blue!50!black,
+    pdftitle={FinHive: arquitectura multiagente jerarquica financiera sobre Databricks},
+    pdfauthor={Matias Fabian Adell}
+}
+
+\definecolor{boxblue}{RGB}{235,242,252}
+\definecolor{boxborder}{RGB}{70,110,180}
+\definecolor{warnbox}{RGB}{253,240,230}
+\definecolor{warnborder}{RGB}{200,110,40}
+
+\newcommand{\hlr}[1]{\textcolor{red!70!black}{#1}}
+\newcommand{\hlb}[1]{\textcolor{blue!50!black}{#1}}
+\newcommand{\hlg}[1]{\textcolor{green!40!black}{#1}}
+
+\newenvironment{findingbox}[1]
+  {\par\medskip\noindent{\color{warnborder}\rule{\linewidth}{0.7pt}}\par
+   \vspace{3pt}\noindent\textbf{\color{warnborder}Hallazgo: #1}\par\smallskip\noindent}
+  {\par\vspace{3pt}\noindent{\color{warnborder}\rule{\linewidth}{0.7pt}}\medskip}
+
+
+\title{\textbf{FinHive}\\[4pt]
+\large De la teoria a la practica: una arquitectura multiagente jerarquica\\
+financiera, construida sobre Databricks}
+\author{Matias Fabian Adell}
+\date{Agosto 2026}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+\noindent
+Este articulo documenta el diseno, la implementacion y la puesta en produccion de
+FinHive: un sistema multiagente \textbf{jerarquico} de analisis financiero --- un
+supervisor raiz que coordina cinco supervisores de dominio (macroeconomia,
+equity research, portfolio \& risk, news \& sentiment, y cripto/activos
+alternativos), cada uno con sus propios workers ReAct --- construido sobre
+LangGraph y desplegado enteramente sobre Databricks Free Edition. El proyecto
+nace como aplicacion practica de una investigacion teorica previa sobre
+arquitecturas agenticas (timeline de 24 arquitecturas, 2020--2026) y busca
+demostrar, con un sistema real y verificado extremo a extremo, dominio de los
+patrones centrales del campo: ReAct, memoria persistente, RAG correctivo,
+topologias de orquestacion multiagente, protocolos de interoperabilidad, y
+gobernanza de modelos via un LLM Gateway. Mas alla de la arquitectura, este
+articulo documenta con el mismo nivel de detalle los \textbf{fallos reales
+encontrados y corregidos} durante la construccion --- alucinaciones causadas
+por fallos silenciosos de herramientas, bugs de compatibilidad entre
+plataformas, errores de ruteo entre dominios --- porque ese proceso de
+depuracion es, en la practica, donde mas se pone a prueba el conocimiento de
+como estos sistemas realmente fallan.
+\end{abstract}
+
+\tableofcontents
+
+%============================================================
+\section{Introduccion}
+%============================================================
+
+Un modelo de lenguaje individual, por capaz que sea, tiene limites claros
+frente a un dominio tan amplio y heterogeneo como el analisis financiero:
+requiere datos macroeconomicos estructurados, fundamentals de empresas
+cotizantes, calculo cuantitativo de riesgo de portfolio, sentimiento de
+mercado en tiempo real, y datos de mercados de criptoactivos --- cada uno con
+sus propias fuentes, formatos y ventanas temporales. La respuesta arquitectonica
+mas natural a esa heterogeneidad no es un unico agente generalista, sino una
+\textbf{red de agentes especializados}, coordinados bajo una topologia que
+distribuya la responsabilidad sin perder coherencia en la respuesta final.
+
+FinHive implementa exactamente ese patron: una jerarquia de dos niveles donde
+un supervisor raiz decide, por cada turno de conversacion, a cual de cinco
+equipos de dominio delegar, y cada equipo de dominio es a su vez un
+supervisor que coordina entre dos y tres workers ReAct especializados. El
+proyecto se aloja integramente en \textbf{Databricks Free Edition}, aprovechando
+Unity Catalog, Foundation Model APIs nativos, Unity AI Gateway, y Databricks
+Repos --- con el objetivo explicito de que el costo total de desarrollo y
+demostracion sea \$0.
+
+Este articulo tiene tres objetivos. Primero, documentar la arquitectura y las
+decisiones de diseno que la sostienen. Segundo, mapear explicitamente que
+conceptos de la literatura de arquitecturas agenticas se aplican en que parte
+del sistema --- no como referencia decorativa, sino como decisiones de diseno
+verificables. Tercero, y quizas mas valioso, documentar los \textbf{problemas
+reales} encontrados al construir un sistema de este tipo contra APIs y
+modelos reales, no simulados: qué falla, por qué falla, y cómo se corrigió.
+
+%============================================================
+\section{Contexto: de la teoria a un caso de uso real}
+%============================================================
+
+Este proyecto es la continuacion practica de un trabajo teorico previo
+--- un timeline de 24 arquitecturas agenticas organizadas en seis eras
+narrativas, desde el RAG clasico (\cite{lewis2020}) hasta los primeros
+intentos de sistematizar el campo en una taxonomia formal --- que identifica
+una tendencia central: cada era del campo le devuelve control de diseno a un
+pipeline fijo y se lo entrega al propio sistema. Primero el modelo gana
+agencia sobre su propio control flow (ReAct, \cite{yao2023}); despues esa
+agencia se aplica al pipeline de RAG (Self-RAG, CRAG); despues se distribuye
+entre multiples agentes especializados bajo topologias de orquestacion
+(Network, Supervisor, Jerarquica); y finalmente se estandariza como esa
+agencia distribuida interopera entre organizaciones (MCP, A2A).
+
+FinHive es, en ese sentido, un ejercicio deliberado de aplicar esa cadena
+completa a un dominio concreto en vez de quedarse en el nivel conceptual: la
+pregunta que organiza el proyecto no es \emph{``que arquitectura elegir''}
+sino \emph{``que tan poco control de diseno hace falta fijar a mano''} ---
+topologia, memoria, tolerancia a fallos --- delegando cada vez mas al propio
+sistema, en la misma direccion que senala la investigacion teorica previa.
+
+%============================================================
+\section{Arquitectura del sistema}
+%============================================================
+
+\subsection{Vision general: supervisor de supervisores}
+
+La Figura~\ref{fig:arquitectura} resume la topologia completa. El patron es
+el mismo, replicado en dos niveles: un nodo supervisor decide, con
+\emph{structured output}, a que nodo delegar el siguiente turno, hasta decidir
+\texttt{FINISH}. En el nivel superior, los ``trabajadores'' son subgrafos
+completos (cada supervisor de dominio); en el nivel inferior, son workers
+ReAct individuales con tools propias.
+
+\begin{figure}[htb]
+\centering
+\begin{tikzpicture}[
+  node distance=10mm and 6mm,
+  every node/.style={font=\small},
+  sup/.style={draw=boxborder, fill=boxblue, rounded corners, minimum width=6.6cm,
+              minimum height=9mm, align=center, font=\small\bfseries},
+  dom/.style={draw=boxborder, fill=white, rounded corners, minimum width=2.55cm,
+              minimum height=13mm, align=center, font=\footnotesize},
+  wrk/.style={draw=gray, fill=gray!8, rounded corners, minimum width=2.55cm,
+              minimum height=6mm, align=center, font=\scriptsize},
+  arr/.style={-{Stealth[length=2mm]}, draw=boxborder}
+]
+\node[sup] (top) {Top-Level Supervisor\\ \footnotesize (routing real via Unity AI Gateway, ADR 0009/0010)};
+
+\node[dom, below left=14mm and 62mm of top] (macro) {Macro};
+\node[dom, right=4mm of macro] (equity) {Equity\\Research};
+\node[dom, right=4mm of equity] (portfolio) {Portfolio\\\& Risk};
+\node[dom, right=4mm of portfolio] (news) {News \&\\Sentiment};
+\node[dom, right=4mm of news] (crypto) {Crypto\\\& Alt};
+
+\draw[arr] (top) -- (macro);
+\draw[arr] (top) -- (equity);
+\draw[arr] (top) -- (portfolio);
+\draw[arr] (top) -- (news);
+\draw[arr] (top) -- (crypto);
+
+\node[wrk, below=6mm of macro] (m1) {3 workers ReAct};
+\node[wrk, below=6mm of equity] (e1) {3 workers ReAct};
+\node[wrk, below=6mm of portfolio] (p1) {3 workers ReAct};
+\node[wrk, below=6mm of news] (n1) {3 workers ReAct};
+\node[wrk, below=6mm of crypto] (c1) {2 workers ReAct};
+
+\draw[arr] (macro) -- (m1);
+\draw[arr] (equity) -- (e1);
+\draw[arr] (portfolio) -- (p1);
+\draw[arr] (news) -- (n1);
+\draw[arr] (crypto) -- (c1);
+\end{tikzpicture}
+\caption{Topologia jerarquica de FinHive: un supervisor raiz enruta entre 5
+equipos de dominio (patron ``Supervisor''); cada equipo de dominio enruta
+entre sus propios workers ReAct (mismo patron, un nivel abajo). 13 workers en
+total sobre 25 tools registradas en Unity Catalog.}
+\label{fig:arquitectura}
+\end{figure}
+
+\subsection{Los cinco dominios}
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Macro \& Politica Monetaria}: tasas de interes, inflacion e
+  indicadores generales, sobre datos reales de FRED (Federal Reserve Economic
+  Data). Workers: \texttt{rates\_worker}, \texttt{inflation\_worker},
+  \texttt{indicators\_worker}.
+  \item \textbf{Equity Research \& Fundamentals}: cotizaciones, fundamentals
+  y filings regulatorios de empresas cotizantes, via yfinance y la API de SEC
+  EDGAR (submissions y datos XBRL estructurados). Workers:
+  \texttt{fundamentals\_worker}, \texttt{technical\_worker},
+  \texttt{filings\_worker}.
+  \item \textbf{Portfolio \& Risk Management}: el unico dominio de
+  \emph{computo propio} en vez de passthrough a una API --- volatilidad
+  anualizada, VaR historico, matriz de correlacion y Sharpe ratio, calculados
+  con \texttt{numpy}/\texttt{pandas} sobre precios reales. Workers:
+  \texttt{allocation\_worker}, \texttt{risk\_worker}, \texttt{math\_worker}.
+  \item \textbf{News \& Sentiment}: noticias con sentimiento estructurado y
+  calendario de earnings via Alpha Vantage, con busqueda web (Tavily) como
+  \emph{fallback} estilo CRAG cuando la fuente estructurada no alcanza.
+  Workers: \texttt{news\_worker}, \texttt{sentiment\_worker},
+  \texttt{calendar\_worker}.
+  \item \textbf{Crypto \& Alternative Assets}: precio, historial y tendencias
+  de criptomonedas via CoinGecko (API publica, sin autenticacion). Workers:
+  \texttt{market\_data\_worker}, \texttt{alt\_data\_worker}.
+\end{itemize}
+
+\subsection{Infraestructura sobre Databricks}
+
+Todo el sistema corre sobre \textbf{Databricks Free Edition}, con costo total
+verificado de \$0:
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Foundation Model APIs nativos} (\texttt{system.ai.*}) para los
+  LLMs de dominio: Llama 3.3 70B (supervisores) y Llama 3.1 8B (workers), sin
+  ninguna key externa.
+  \item \textbf{Unity Catalog Functions}: las 25 tools de datos estan
+  registradas como funciones de Unity Catalog (\texttt{workspace.finhive.*})
+  para gobernanza y catalogacion --- el equivalente conceptual a MCP sin
+  pasar por los Managed MCP servers de Databricks, que facturan computo
+  serverless por invocacion.
+  \item \textbf{Unity AI Gateway}: el supervisor raiz --- el nodo mas critico
+  del grafo --- corre sobre un \emph{model service} propio
+  (\texttt{workspace.finhive.finhive\_router}) con \textbf{routing real}
+  entre dos modelos (70\% Llama 3.3 70B / 30\% GPT OSS 120B), mas rate
+  limits explicitos sobre los tres endpoints del proyecto.
+  \item \textbf{Databricks Repos + notebooks nativos}: el repositorio de
+  GitHub esta conectado como Repo en el workspace; un notebook demo
+  (\texttt{00\_demo.py}) instala el paquete en modo editable y corre el
+  sistema completo dentro de Databricks, con credenciales cargadas via
+  \texttt{dbutils.secrets} y \texttt{dbutils.notebook} en vez de archivos de
+  configuracion locales.
+  \item \textbf{MLflow Tracing}: cada invocacion del grafo genera una traza
+  completa (cada nodo, cada tool call, cada llamada a LLM) via
+  \texttt{mlflow.langchain.autolog()}.
+\end{itemize}
+
+%============================================================
+\section{Mapa de conceptos teoricos aplicados}
+%============================================================
+
+La Tabla~\ref{tab:conceptos} conecta explicitamente cada concepto de la
+investigacion teorica previa con su implementacion concreta en FinHive --- el
+objetivo declarado del proyecto no es solo construir un sistema que funcione,
+sino demostrar, de forma verificable, el manejo de estos patrones.
+
+\begin{longtable}{@{}p{4.6cm}p{9.7cm}@{}}
+\caption{Mapa de trazabilidad teoria--implementacion.}\label{tab:conceptos}\\
+\toprule
+\textbf{Concepto (papers/seccion)} & \textbf{Donde se aplica en FinHive} \\
+\midrule
+\endhead
+ReAct \cite{yao2023} & Los 13 workers hoja usan
+\texttt{langchain.agents.create\_agent} (patron thought--action--observation). \\
+Reflexion \cite{shinn2023} & Prompt de auto-critica en los supervisores de
+dominio: no aceptar un dato sin que provenga de una tool real. \\
+Generative Agents / MemGPT \cite{park2023,packer2023} & Memoria de dos
+niveles planificada (checkpointer de conversacion + memoria persistente de
+perfil), trabajo futuro documentado en la seccion~\ref{sec:futuro}. \\
+Self-RAG / Corrective RAG \cite{asai2024,yan2024} & \texttt{web\_search\_news}
+(Tavily) como fallback cuando Alpha Vantage no cubre una consulta ---
+patron CRAG de ``no confiar ciegamente en la fuente primaria''. \\
+Multi-Agent Network / Supervisor / Jerarquica \cite{wu2023,wang2025} & Los
+tres patrones del proyecto de referencia, aplicados literalmente: cada
+dominio es un ``Supervisor'' de sus workers; el conjunto completo es
+``Jerarquico'' (TalkHier) de dos niveles. \\
+Mixture-of-Agents \cite{wangmoa2024} & Sintesis del supervisor raiz cuando
+una pregunta cruza dos o mas dominios, combinando las respuestas de equipos
+independientes en una unica respuesta coherente. \\
+Model Context Protocol (MCP) & Unity Catalog Functions expuestas con
+interfaz gobernada y catalogada, en vez de los Managed MCP servers
+(decision de costo, ver ADR 0004). \\
+LLM Gateway (\S19, resumen conceptual del bootcamp) & Unity AI Gateway:
+routing real 70/30 entre dos modelos, rate limits explicitos, usage
+tracking --- las mismas responsabilidades (routing/fallback, cost tracking,
+policy enforcement) descriptas en la literatura, verificadas en un sistema
+real. \\
+Adaptive-RAG \cite{jeong2024} & El router del supervisor raiz decide, por
+turno, si delegar a un unico equipo o a varios --- version simplificada de
+enrutar segun la complejidad real de la pregunta. \\
+LLM-as-judge / evaluacion & Trabajo futuro directo: Mosaic AI Agent
+Evaluation (framework CLEARS) sobre el grafo ya instrumentado con MLflow. \\
+\bottomrule
+\end{longtable}
+
+%============================================================
+\section{Decisiones de diseno y hallazgos tecnicos reales}
+%============================================================
+
+Esta seccion documenta, en orden cronologico, los problemas reales
+encontrados construyendo el sistema contra APIs y modelos reales --- no
+como anecdota, sino porque en la practica es donde mas se pone a prueba la
+comprension de como fallan estos sistemas. El registro completo esta en diez
+\emph{Architecture Decision Records} (ADRs) en el repositorio; esta seccion
+resume los mas significativos.
+
+\subsection{El costo del LLM: tres decisiones antes de llegar a la correcta}
+
+La primera decision de arquitectura --- que LLM usar --- paso por tres
+iteraciones reales antes de asentarse. Primero se evaluo Anthropic via
+\emph{External Models} de Databricks; al confirmar que la API de Anthropic
+es pay-per-uso separada de una suscripcion de Claude, se paso a Groq (free
+tier real, modelos open-weight). Groq quedo configurado y probado, pero al
+revisar el catalogo de Foundation Model APIs \emph{nativos} de Databricks se
+confirmo, con una llamada real contra el workspace, que estan incluidos sin
+costo en Free Edition --- sin necesitar ninguna cuenta de terceros. Se migro
+la arquitectura completa a los modelos nativos, eliminando toda dependencia
+de key externa para el LLM.
+
+\begin{findingbox}{decisiones de proveedor de LLM no son solo tecnicas}
+El costo real de un proveedor de LLM no siempre es evidente hasta probarlo
+contra la cuenta real: la documentacion generica no sustituye una llamada de
+prueba contra el propio workspace. Las tres iteraciones quedaron documentadas
+en ADRs sucesivos en vez de sobrescribir la decision anterior --- el registro
+del cambio es en si mismo parte del valor del documento.
+\end{findingbox}
+
+\subsection{Un bug de subprocess causa una alucinacion}
+\label{sec:hallazgo-windows}
+
+Al conectar las tools de datos como \emph{Unity Catalog Functions}, el modo
+recomendado de ejecucion (\texttt{UCFunctionToolkit} en modo \texttt{local})
+fallo silenciosamente en Windows: el runner que genera internamente hace
+\texttt{import resource}, un modulo de la libreria estandar que \textbf{solo
+existe en sistemas Unix}. El fallo se manifesto como un mensaje de error
+generico (\emph{``the function execution has been terminated with a
+signal''}), y el worker, en vez de admitir que no tenia el dato, \textbf{alucino
+una cifra plausible} (5.25\% de tasa de fondos federales, cuando el valor
+real --- verificado por separado --- era 3.63\%).
+
+\begin{findingbox}{un fallo silencioso de tool es indistinguible de un dato real}
+La correccion tecnica fue simple (envolver las mismas funciones directamente
+como tools de LangChain, sin pasar por el sandbox de subprocess), pero el
+hallazgo de fondo es mas general: cuando una tool falla sin una senal clara,
+el modelo de lenguaje puede optar por una respuesta plausible en vez de una
+admision de incertidumbre. Ese comportamiento es exactamente lo que
+Corrective RAG y los guardrails de \emph{groundedness} buscan prevenir --- y
+esta fue evidencia empirica de por que importan, no solo una referencia
+teorica.
+\end{findingbox}
+
+\subsection{Un supervisor que no sabia cuando parar}
+
+Al implementar el supervisor raiz con \emph{structured output} para decidir
+el proximo equipo, dos problemas de compatibilidad y de disenio de prompt
+aparecieron en la misma iteracion. Primero, un \texttt{Literal} construido
+dinamicamente con \emph{unpacking} en runtime rompio la conversion de schema
+de \texttt{with\_structured\_output} (\texttt{TypeError:\allowbreak\ issubclass()\allowbreak\ arg\ 1\ must\allowbreak\ be\ a\allowbreak\ class}) ---
+resuelto usando un campo \texttt{str} simple, validado en codigo en vez de
+delegarlo al schema. Segundo, y mas relevante: sobre una pregunta ya
+respondida completamente en la primera vuelta, el supervisor re-ruteo al
+mismo equipo \textbf{nueve veces} antes de decidir \texttt{FINISH}, gastando
+cuota de requests sin necesidad.
+
+La correccion combino dos capas, deliberadamente redundantes: un prompt mas
+explicito sobre cuando parar, y un \textbf{limite duro de iteraciones}
+independiente del juicio del modelo. Con ambas, la misma clase de pregunta
+paso de nueve vueltas a una.
+
+\subsection{Ruteo incorrecto entre dominios y su costo}
+
+Con cuatro dominios reales, la pregunta \emph{``¿cuando es el proximo
+earnings de Apple?''} se enruto al equipo de \textbf{Equity} en vez de
+\textbf{News \& Sentiment}. El router solo recibia los \emph{nombres} de los
+equipos, sin descripcion de sus limites --- nada distinguia ``resultados ya
+reportados'' de ``fecha de un resultado futuro''. Equity, sin la tool de
+calendario, \textbf{alucino una fecha incorrecta} (2025 en vez de la real,
+octubre de 2026) en vez de admitir que no tenia el dato: el mismo patron de
+fondo que el hallazgo de la seccion~\ref{sec:hallazgo-windows}, esta vez
+causado por una ambiguedad de ruteo en vez de un bug de plataforma.
+
+La correccion fue agregarle al router descripciones explicitas de cada
+equipo, incluyendo lineas de ``esto NO es de este equipo'' en los casos de
+frontera ya identificados --- un patron que se aplico preventivamente al
+sumar el quinto dominio (Crypto), anotando de antemano su frontera con
+Equity antes de que apareciera el mismo tipo de bug.
+
+\subsection{Tools defensivas: cuando una API externa falla}
+
+Probando el dominio de Crypto bajo uso intensivo, un \texttt{429 Too Many
+Requests} de CoinGecko sin capturar \textbf{crasheo la invocacion completa}
+del grafo jerarquico de cinco equipos --- la excepcion se propagaba en vez de
+quedar como una observacion que el worker pudiera manejar. El problema era
+transversal, no especifico de un dominio: los cinco usan el mismo patron
+\texttt{requests.get(...);\ response.raise\_for\_status()}. La correccion fue
+un decorador (\texttt{safe\_tool}) que envuelve cualquier tool y convierte
+cualquier excepcion en un string de error descriptivo, aplicado en las 25
+tools de los cinco dominios.
+
+\subsection{Model routing real, verificado empiricamente}
+
+El hallazgo mas reciente no fue un bug sino una capacidad nueva: Unity AI
+Gateway (disponibilidad general, agosto de 2026) permite crear
+\emph{model services} de Unity Catalog con routing real entre modelos. Se
+configuro \texttt{finhive\_router} con 70\% de trafico a Llama 3.3 70B y
+30\% a GPT OSS 120B, y se \textbf{verifico empiricamente}, no solo por
+configuracion: seis llamadas de prueba devolvieron cinco respuestas servidas
+por Llama y una por GPT OSS 120B, consistente con el split configurado.
+El cliente de LangChain especializado de Databricks (\texttt{ChatDatabricks})
+todavia no soporta el path nuevo de API que exige este mecanismo; la
+integracion se resolvio usando el cliente OpenAI-compatible que Databricks
+expone directamente (\texttt{langchain\_openai.ChatOpenAI}, apuntando a
+\texttt{/ai-gateway/mlflow/v1}), sin esperar a que la libreria especializada
+alcance a la plataforma.
+
+%============================================================
+\section{Resultados}
+%============================================================
+
+\begin{itemize}[leftmargin=*]
+  \item Cinco dominios completos, verificados extremo a extremo contra
+  Databricks y APIs de datos reales --- no simulados.
+  \item 13 workers ReAct sobre 25 Unity Catalog Functions registradas y
+  gobernadas.
+  \item Seis tests de integracion pasando juntos, cada uno verificando que
+  la respuesta este \emph{grounded} en una llamada real a una tool (no solo
+  que el codigo no arroje una excepcion).
+  \item Costo total de LLM y embeddings: \textbf{\$0}, verificado en vivo
+  contra la cuenta real de Databricks Free Edition, no solo asumido por
+  documentacion.
+  \item Diez Architecture Decision Records documentando cada decision y cada
+  hallazgo con su razonamiento, no solo el estado final.
+\end{itemize}
+
+%============================================================
+\section{Trabajo futuro}
+\label{sec:futuro}
+%============================================================
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Guardrails formales}: tópico, seguridad, \emph{groundedness}
+  y anti-jailbreak, con disclaimers explicitos --- motivado directamente por
+  los hallazgos de alucinacion documentados en este articulo.
+  \item \textbf{Memoria persistente}: checkpointer de conversacion mas
+  memoria de largo plazo de perfil/portfolio (patron MemGPT), pendiente
+  desde el diseno original.
+  \item \textbf{RAG sobre filings completos}: arbol de resumenes al estilo
+  RAPTOR sobre el texto completo de 10-K/10-Q, hoy cubierto solo por
+  metadata y datos XBRL estructurados.
+  \item \textbf{Mosaic AI Agent Framework}: envolver el grafo existente
+  (sin reescribirlo) con la interfaz \texttt{ChatAgent} de MLflow y evaluar
+  con el framework CLEARS (Correctness, Latency, Execution, Adherence,
+  Relevance, Safety) --- extension directa de la instrumentacion de MLflow
+  ya activa.
+  \item \textbf{Demo desplegada}: aplicacion Streamlit como Databricks App,
+  con visualizacion de que equipo/worker respondio cada parte de la
+  pregunta.
+\end{itemize}
+
+%============================================================
+\section{Conclusion}
+%============================================================
+
+FinHive demuestra que los patrones centrales de la literatura de
+arquitecturas agenticas --- ReAct, RAG correctivo, topologias de
+orquestacion jerarquica, protocolos de gobernanza de herramientas y
+modelos --- no son solo conceptos de paper, sino decisiones de ingenieria
+con consecuencias concretas y verificables cuando se aplican contra sistemas
+reales. El valor mas duradero del proyecto no es la arquitectura final en si
+misma, sino el registro explicito de cada decision y cada fallo real que
+llevo hasta ahi: una alucinacion causada por un bug de plataforma, un loop
+sin limite, un error de ruteo entre dominios --- cada uno documentado con su
+causa raiz y su correccion, no solo su resultado. Es esa disciplina de
+documentacion, mas que cualquier eleccion de framework, la que hace que el
+sistema sea auditable y extensible.
+
+%============================================================
+\begin{thebibliography}{99}
+
+\bibitem{lewis2020} Lewis, P. et al. (2020). Retrieval-Augmented Generation
+for Knowledge-Intensive NLP Tasks. \emph{NeurIPS 33}, 9459--9474.
+
+\bibitem{yao2023} Yao, S. et al. (2023). ReAct: Synergizing Reasoning and
+Acting in Language Models. \emph{ICLR}.
+
+\bibitem{shinn2023} Shinn, N. et al. (2023). Reflexion: Language Agents with
+Verbal Reinforcement Learning. \emph{NeurIPS}.
+
+\bibitem{park2023} Park, J. S. et al. (2023). Generative Agents: Interactive
+Simulacra of Human Behavior. \emph{UIST}.
+
+\bibitem{packer2023} Packer, C. et al. (2023). MemGPT: Towards LLMs as
+Operating Systems. \emph{arXiv:2310.08560}.
+
+\bibitem{asai2024} Asai, A. et al. (2024). Self-RAG: Learning to Retrieve,
+Generate, and Critique through Self-Reflection. \emph{ICLR}.
+
+\bibitem{yan2024} Yan, S.-Q. et al. (2024). Corrective Retrieval Augmented
+Generation. \emph{arXiv:2401.15884}.
+
+\bibitem{jeong2024} Jeong, S. et al. (2024). Adaptive-RAG: Learning to Adapt
+Retrieval-Augmented Large Language Models through Question Complexity.
+\emph{NAACL}.
+
+\bibitem{wu2023} Wu, Q. et al. (2023). AutoGen: Enabling Next-Gen LLM
+Applications via Multi-Agent Conversation. \emph{arXiv:2308.08155}.
+
+\bibitem{wang2025} Wang, Z. et al. (2025). Talk Structurally, Act
+Hierarchically: A Collaborative Framework for LLM Multi-Agent Systems.
+\emph{arXiv preprint}.
+
+\bibitem{wangmoa2024} Wang, J. et al. (2024). Mixture-of-Agents Enhances
+Large Language Model Capabilities. \emph{arXiv:2406.04692}.
+
+\bibitem{adell2026timeline} Adell, M. (2026). Del bibliotecario solitario al
+equipo de agentes: una linea de tiempo de las arquitecturas agenticas, de
+RAG a los sistemas multiagente (2020--2026). Seminario de Tendencias de
+Ciencia de Datos.
+
+\end{thebibliography}
+
+\end{document}
