@@ -5,10 +5,10 @@ bootcamp: cada equipo de dominio es un subgrafo compilado, invocado desde un
 nodo del grafo superior; el supervisor raíz decide, con structured output, a
 qué equipo rutear cada turno, hasta que decide FINISH.
 
-Hoy solo hay un equipo real (`macro`); agregar equity/portfolio_risk/
-news_sentiment/crypto_alt es: (1) construir su sub-supervisor igual que
-`finhive.agents.macro`, (2) sumarlo a `_TEAM_BUILDERS` acá abajo. El resto
-(routing, síntesis) ya generaliza solo.
+Equipos reales hoy: `macro`, `equity`. Agregar portfolio_risk/news_sentiment/
+crypto_alt es: (1) construir su sub-supervisor igual que `finhive.agents.macro`,
+(2) sumarlo a `_TEAM_BUILDERS` acá abajo. El resto (routing, síntesis) ya
+generaliza solo.
 """
 
 from __future__ import annotations
@@ -34,7 +34,14 @@ def _register_macro_team() -> None:
     _TEAM_BUILDERS["macro"] = build_macro_supervisor
 
 
+def _register_equity_team() -> None:
+    from finhive.agents.equity import build_equity_supervisor
+
+    _TEAM_BUILDERS["equity"] = build_equity_supervisor
+
+
 _register_macro_team()
+_register_equity_team()
 
 _team_graph_cache: dict[str, object] = {}
 

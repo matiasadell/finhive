@@ -36,13 +36,33 @@ def register_functions(functions: list[Callable]) -> None:
 
 
 def main() -> None:
+    from finhive.tools.equity_data import (
+        calculate_sma,
+        get_sec_company_facts,
+        get_stock_fundamentals,
+        get_stock_price_history,
+        get_stock_quote,
+        search_sec_filings,
+    )
     from finhive.tools.macro_data import (
         get_fred_series_history,
         get_fred_series_latest,
         search_fred_series,
     )
 
-    register_functions([search_fred_series, get_fred_series_latest, get_fred_series_history])
+    register_functions(
+        [
+            search_fred_series,
+            get_fred_series_latest,
+            get_fred_series_history,
+            get_stock_quote,
+            get_stock_fundamentals,
+            get_stock_price_history,
+            calculate_sma,
+            search_sec_filings,
+            get_sec_company_facts,
+        ]
+    )
 
 
 if __name__ == "__main__":

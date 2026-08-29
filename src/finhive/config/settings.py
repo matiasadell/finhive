@@ -37,6 +37,22 @@ def get_fred_api_key() -> str:
     return key
 
 
+def get_sec_edgar_user_agent() -> str:
+    """Lee SEC_EDGAR_USER_AGENT de env; falla explícito si no está configurada.
+
+    SEC EDGAR no requiere API key, pero exige un User-Agent descriptivo con
+    contacto real (su fair access policy bloquea requests sin esto).
+    """
+    ua = os.getenv("SEC_EDGAR_USER_AGENT", "").strip()
+    if not ua:
+        raise RuntimeError(
+            "SEC_EDGAR_USER_AGENT no está seteada. Poné algo como "
+            '"TuNombre tu-email@ejemplo.com" en tu .env — SEC EDGAR exige un '
+            "User-Agent descriptivo, aunque no pide API key."
+        )
+    return ua
+
+
 def get_chat_model(tier: Literal["supervisor", "worker"], temperature: float = 0.1):
     """Instancia un `ChatDatabricks` apuntando al endpoint correcto según el rol.
 

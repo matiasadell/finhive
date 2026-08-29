@@ -36,6 +36,7 @@ externa, mismo nivel de gobernanza vía AI Gateway.
 | LLM — supervisores | `databricks-meta-llama-3-3-70b-instruct` (`system.ai.llama_v3_3_70b_instruct`) | Query de prueba exitosa vía CLI, sin costo |
 | LLM — workers | `databricks-meta-llama-3-1-8b-instruct` (`system.ai.meta_llama_v3_1_8b_instruct`) | Ya `READY` |
 | Embeddings — Vector Search | `databricks-gte-large-en` (`system.ai.gte_large_en_v1_5`) | Ya `READY` |
-| UC Functions (dominio Macro) | `workspace.finhive.search_fred_series`, `.get_fred_series_latest`, `.get_fred_series_history` | Registradas y gobernadas en UC; ejecución real en proceso propio, no vía `UCFunctionToolkit` (ver ADR 0004) |
+| UC Functions (Macro) | `search_fred_series`, `get_fred_series_latest`, `get_fred_series_history` | Registradas y gobernadas en UC; ejecución real en proceso propio, no vía `UCFunctionToolkit` (ver ADR 0004) |
+| UC Functions (Equity) | `get_stock_quote`, `get_stock_fundamentals`, `get_stock_price_history`, `calculate_sma`, `search_sec_filings`, `get_sec_company_facts` | Ídem, registradas en `workspace.finhive` |
 
-Ver `docs/architecture/adr/` (0001-0004) para el historial completo de estas decisiones.
+Ver `docs/architecture/adr/` (0001-0005) para el historial completo de estas decisiones.
