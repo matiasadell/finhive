@@ -1,0 +1,51 @@
+# Secrets — never commit real credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Course/bootcamp reference material — not part of the public project
+.reference/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+
+# uv
+.uv/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# pytest / coverage / mypy
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# MLflow / LangSmith local artifacts
+mlruns/
+mlartifacts/
+
+# Databricks
+.databricks/
+.databricks-login.json
+
+# Data — large corpora live in Unity Catalog Volumes, not in git
+data/**
+!data/sample_docs/
+!data/sample_docs/README.md
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
