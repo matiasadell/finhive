@@ -49,6 +49,15 @@ def main() -> None:
         get_fred_series_latest,
         search_fred_series,
     )
+    from finhive.tools.portfolio_math import (
+        add_numbers,
+        calculate_correlation_matrix,
+        calculate_portfolio_var,
+        calculate_portfolio_volatility,
+        calculate_sharpe_ratio,
+        divide_numbers,
+        multiply_numbers,
+    )
 
     register_functions(
         [
@@ -61,6 +70,13 @@ def main() -> None:
             calculate_sma,
             search_sec_filings,
             get_sec_company_facts,
+            calculate_portfolio_volatility,
+            calculate_portfolio_var,
+            calculate_correlation_matrix,
+            calculate_sharpe_ratio,
+            add_numbers,
+            multiply_numbers,
+            divide_numbers,
         ]
     )
 

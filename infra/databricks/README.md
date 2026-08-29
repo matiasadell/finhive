@@ -38,5 +38,6 @@ externa, mismo nivel de gobernanza vía AI Gateway.
 | Embeddings — Vector Search | `databricks-gte-large-en` (`system.ai.gte_large_en_v1_5`) | Ya `READY` |
 | UC Functions (Macro) | `search_fred_series`, `get_fred_series_latest`, `get_fred_series_history` | Registradas y gobernadas en UC; ejecución real en proceso propio, no vía `UCFunctionToolkit` (ver ADR 0004) |
 | UC Functions (Equity) | `get_stock_quote`, `get_stock_fundamentals`, `get_stock_price_history`, `calculate_sma`, `search_sec_filings`, `get_sec_company_facts` | Ídem, registradas en `workspace.finhive` |
+| UC Functions (Portfolio & Risk) | `calculate_portfolio_volatility`, `calculate_portfolio_var`, `calculate_correlation_matrix`, `calculate_sharpe_ratio`, `add_numbers`, `multiply_numbers`, `divide_numbers` | Ídem — cómputo propio con numpy/pandas, no solo passthrough a una API |
 
 Ver `docs/architecture/adr/` (0001-0005) para el historial completo de estas decisiones.

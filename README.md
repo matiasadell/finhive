@@ -84,9 +84,9 @@ obtenerlas (todas gratuitas o free-tier).
 - [x] Infraestructura mínima de Databricks (schema, volume, vector search endpoint, secret scope)
 - [x] LLM: Foundation Model APIs nativos de Databricks verificados en vivo (Llama 3.3 70B / 3.1 8B), sin key externa
 - [x] Sub-supervisor de Macro (3 workers ReAct + supervisor, tools sobre FRED registradas en Unity Catalog)
-- [x] Top-level supervisor + composición jerárquica (Macro + Equity, verificado end-to-end)
+- [x] Top-level supervisor + composición jerárquica (Macro + Equity + Portfolio & Risk, verificado end-to-end)
 - [x] Sub-supervisor de Equity Research (fundamentals/técnico/filings, tools sobre yfinance + SEC EDGAR)
-- [ ] Sub-supervisor de Portfolio & Risk
+- [x] Sub-supervisor de Portfolio & Risk (volatilidad/VaR/correlación/Sharpe, cómputo propio con numpy/pandas)
 - [ ] Sub-supervisor de News & Sentiment
 - [ ] Sub-supervisor de Crypto & Alt
 - [ ] Guardrails y memoria persistente
