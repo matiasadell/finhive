@@ -17,11 +17,12 @@ from __future__ import annotations
 from typing import Literal, TypedDict
 
 from langchain_core.messages import HumanMessage
-from langgraph.graph import END, START, StateGraph
+from langgraph.graph import START, StateGraph
 from langgraph.types import Command
 
 from finhive.config.settings import get_router_chat_model
 from finhive.graph.state import FinHiveState
+from finhive.guardrails import input_guardrail_node, output_guardrail_node
 
 # Cada entrada: nombre del equipo -> función que construye su grafo compilado.
 # Se instancian de forma perezosa (lazy) y se cachean, para no pagar el costo
@@ -156,16 +157,16 @@ def _make_supervisor_node(members: list[str]):
     llm = get_router_chat_model()
     structured_llm = llm.with_structured_output(_Router)
 
-    def supervisor_node(state: FinHiveState) -> Command[Literal[*members, "__end__"]]:
+    def supervisor_node(state: FinHiveState) -> Command[Literal[*members, "output_guardrail"]]:
         iterations = state.get("iterations", 0)
         if iterations >= _MAX_ITERATIONS:
-            return Command(goto=END, update={"next": "FINISH"})
+            return Command(goto="output_guardrail", update={"next": "FINISH"})
 
         messages = [{"role": "system", "content": system_prompt}] + state["messages"]
         response = structured_llm.invoke(messages)
         goto = response["next"] if response["next"] in options else members[0]
         if goto == "FINISH":
-            return Command(goto=END, update={"next": "FINISH"})
+            return Command(goto="output_guardrail", update={"next": "FINISH"})
         return Command(goto=goto, update={"next": goto, "iterations": iterations + 1})
 
     return supervisor_node
@@ -190,12 +191,24 @@ def _make_team_node(team: str):
 
 
 def build_top_supervisor():
-    """Compila el grafo jerárquico completo de FinHive."""
+    """Compila el grafo jerárquico completo de FinHive.
+
+    El flujo real es `START -> input_guardrail -> supervisor -> (equipos) ->
+    supervisor -> ... -> output_guardrail -> END`. Los guardrails son nodos
+    propios (no una librería aparte, ver ADR 0011) que corren una única vez
+    cada uno por conversación: `input_guardrail` puede cortar directo a END
+    sin gastar ninguna llamada del supervisor si el pedido está fuera de
+    scope; `output_guardrail` es el paso obligatorio antes de terminar,
+    tanto si el supervisor decidió FINISH como si se cortó por
+    `_MAX_ITERATIONS`.
+    """
     members = list(_TEAM_BUILDERS.keys())
 
     builder = StateGraph(FinHiveState)
+    builder.add_node("input_guardrail", input_guardrail_node)
     builder.add_node("supervisor", _make_supervisor_node(members))
     for team in members:
         builder.add_node(team, _make_team_node(team))
-    builder.add_edge(START, "supervisor")
+    builder.add_node("output_guardrail", output_guardrail_node)
+    builder.add_edge(START, "input_guardrail")
     return builder.compile()

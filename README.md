@@ -28,7 +28,7 @@ Databricks Apps).
 Cada worker sigue el patrón ReAct; cada sub-supervisor compone sus workers como un
 sub-grafo de LangGraph; el supervisor raíz compone los cinco sub-grafos ("Hierarchical
 Agent Teams"). El detalle completo de decisiones de arquitectura está en
-[`docs/architecture/adr/`](docs/architecture/adr/) (ADRs 0001-0010), incluyendo un mapa
+[`docs/architecture/adr/`](docs/architecture/adr/) (ADRs 0001-0011), incluyendo un mapa
 explícito de qué concepto de arquitectura agéntica (ReAct, Reflexion, Self-RAG/CRAG,
 RAPTOR, Adaptive-RAG, Mixture-of-Agents, MCP, LLM Gateway, etc.) se aplica en qué parte
 del sistema — MCP, por ejemplo, se resuelve como Unity Catalog Functions gobernadas
@@ -105,7 +105,8 @@ por cada uno de los 5 dominios más una pregunta cross-domain.
 - [x] Tools defensivas: errores de red/rate-limit no crashean el grafo (ADR 0007)
 - [x] Rate limits explícitos de AI Gateway + model routing real (70/30 entre dos modelos), **integrado como modelo del top-level supervisor** (ADR 0008, 0009, 0010)
 - [x] Model service de embeddings gobernado por Unity AI Gateway (`finhive_embeddings`, GTE Large)
-- [ ] Guardrails y memoria persistente
+- [x] Guardrails de entrada (moderación de tópico/scope) y salida (groundedness check), como nodos propios del grafo (ADR 0011)
+- [ ] Memoria persistente
 - [ ] Evaluación (MLflow + LangSmith)
 - [ ] Demo Streamlit desplegada
 - [x] Artículo técnico end-to-end (`docs/latex/finhive_article.tex`) + presentación LinkedIn (`docs/latex/finhive_presentation.tex`)
