@@ -28,7 +28,7 @@ Databricks Apps).
 Cada worker sigue el patrón ReAct; cada sub-supervisor compone sus workers como un
 sub-grafo de LangGraph; el supervisor raíz compone los cinco sub-grafos ("Hierarchical
 Agent Teams"). El detalle completo de decisiones de arquitectura está en
-[`docs/architecture/adr/`](docs/architecture/adr/) (ADRs 0001-0007), incluyendo un mapa
+[`docs/architecture/adr/`](docs/architecture/adr/) (ADRs 0001-0008), incluyendo un mapa
 explícito de qué concepto de arquitectura agéntica (ReAct, Reflexion, Self-RAG/CRAG,
 RAPTOR, Adaptive-RAG, Mixture-of-Agents, MCP, LLM Gateway, etc.) se aplica en qué parte
 del sistema — MCP, por ejemplo, se resuelve como Unity Catalog Functions gobernadas
@@ -80,6 +80,15 @@ databricks auth login --host <tu-workspace-url>   # OAuth, no pega ningún token
 
 Ver `.env.example` para la lista completa de cuentas/API keys necesarias y dónde
 obtenerlas (todas gratuitas o free-tier).
+
+## Probarlo dentro de Databricks
+
+Este repo está conectado como Databricks Repo en el workspace
+(`/Workspace/Users/<tu-usuario>/finhive`). Para correr el sistema completo ahí en vez de
+localmente: abrí [`notebooks/00_demo.py`](notebooks/00_demo.py), conectalo a cómputo
+serverless, y `Run All` — instala el paquete en modo editable, carga las credenciales
+desde Databricks Secrets (`dbutils.secrets`, scope `finhive`) y corre una pregunta real
+por cada uno de los 5 dominios más una pregunta cross-domain.
 
 ## Roadmap
 

@@ -32,10 +32,10 @@ externa, mismo nivel de gobernanza vía AI Gateway.
 | Schema | `workspace.finhive` | Namespace del proyecto dentro del catalog |
 | Volume | `workspace.finhive.docs` | Managed volume para el corpus crudo del RAG |
 | Vector Search endpoint | `finhive_vs_endpoint` | Tipo `STANDARD`, estado `ONLINE`. Sin índices todavía — se crean junto con la ingesta real |
-| Secret scope | `finhive` | Creado, vacío (sin secrets del LLM cargados, ya no hace falta) |
-| LLM — supervisores | `databricks-meta-llama-3-3-70b-instruct` (`system.ai.llama_v3_3_70b_instruct`) | Query de prueba exitosa vía CLI, sin costo |
-| LLM — workers | `databricks-meta-llama-3-1-8b-instruct` (`system.ai.meta_llama_v3_1_8b_instruct`) | Ya `READY` |
-| Embeddings — Vector Search | `databricks-gte-large-en` (`system.ai.gte_large_en_v1_5`) | Ya `READY` |
+| Secret scope | `finhive` | `fred_api_key`, `alpha_vantage_api_key`, `tavily_api_key` cargados — usados por `notebooks/00_demo.py` vía `dbutils.secrets` |
+| LLM — supervisores | `databricks-meta-llama-3-3-70b-instruct` (`system.ai.llama_v3_3_70b_instruct`) | `READY`. AI Gateway: rate limit 30 calls/usuario/min (ADR 0008) |
+| LLM — workers | `databricks-meta-llama-3-1-8b-instruct` (`system.ai.meta_llama_v3_1_8b_instruct`) | `READY`. AI Gateway: rate limit 60 calls/usuario/min (ADR 0008) |
+| Embeddings — Vector Search | `databricks-gte-large-en` (`system.ai.gte_large_en_v1_5`) | `READY`. AI Gateway: rate limit 60 calls/usuario/min (ADR 0008) |
 | UC Functions (Macro) | `search_fred_series`, `get_fred_series_latest`, `get_fred_series_history` | Registradas y gobernadas en UC; ejecución real en proceso propio, no vía `UCFunctionToolkit` (ver ADR 0004) |
 | UC Functions (Equity) | `get_stock_quote`, `get_stock_fundamentals`, `get_stock_price_history`, `calculate_sma`, `search_sec_filings`, `get_sec_company_facts` | Ídem, registradas en `workspace.finhive` |
 | UC Functions (Portfolio & Risk) | `calculate_portfolio_volatility`, `calculate_portfolio_var`, `calculate_correlation_matrix`, `calculate_sharpe_ratio`, `add_numbers`, `multiply_numbers`, `divide_numbers` | Ídem — cómputo propio con numpy/pandas, no solo passthrough a una API |
@@ -46,4 +46,7 @@ externa, mismo nivel de gobernanza vía AI Gateway.
 dominios están envueltas con `finhive.tools.wrappers.safe_tool` (ADR 0007): errores de
 red/rate-limit se devuelven como observación al LLM en vez de crashear el grafo.
 
-Ver `docs/architecture/adr/` (0001-0007) para el historial completo de estas decisiones.
+Los 3 endpoints de FinHive tienen `usage_tracking_config` **y** `rate_limits` explícitos
+de AI Gateway (ADR 0008) — no solo el tracking default que Databricks aplica sin pedirlo.
+
+Ver `docs/architecture/adr/` (0001-0008) para el historial completo de estas decisiones.
