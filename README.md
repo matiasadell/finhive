@@ -15,7 +15,7 @@ Databricks Apps).
 ## Arquitectura
 
 ```
-                         Top-Level Supervisor (Groq/Llama, vía AI Gateway)
+                         Top-Level Supervisor (Llama 3.3 70B nativo, vía AI Gateway)
                          router de complejidad: trivial / single- / multi-domain
                                           │
         ┌───────────┬──────────────┬─────┴────────┬──────────────┬───────────┐
@@ -42,9 +42,9 @@ implementada acá sobre un caso de uso financiero real.
 | Capa | Tecnología |
 |---|---|
 | Orquestación de agentes | LangGraph (+ `langgraph-supervisor`) |
-| LLM | Groq (Llama 3.3/3.1), registrado como External Model (`custom` provider, OpenAI-compatible) en Databricks Model Serving |
+| LLM | Foundation Model APIs nativos de Databricks (Llama 3.3 70B / Llama 3.1 8B), gratis en Free Edition, gobernados por AI Gateway |
 | Gateway / gobernanza | Databricks AI Gateway |
-| Vector search | Databricks Vector Search sobre Unity Catalog |
+| Vector search | Databricks Vector Search sobre Unity Catalog (embeddings: GTE Large nativo de Databricks) |
 | Almacenamiento / catálogo | Unity Catalog (tablas, volumes) |
 | Memoria persistente | Lakebase (Postgres serverless) |
 | Observabilidad / evaluación | MLflow Tracing + MLflow Evaluate, LangSmith |
@@ -79,7 +79,7 @@ obtenerlas (todas gratuitas o free-tier).
 - [x] Diseño de arquitectura y ADR
 - [x] Estructura de repo
 - [x] Infraestructura mínima de Databricks (schema, volume, vector search endpoint, secret scope)
-- [ ] Registrar Groq como External Model (custom provider) en AI Gateway (requiere `GROQ_API_KEY` del usuario)
+- [x] LLM: Foundation Model APIs nativos de Databricks verificados en vivo (Llama 3.3 70B / 3.1 8B), sin key externa
 - [ ] Sub-supervisor de Macro
 - [ ] Sub-supervisor de Equity Research
 - [ ] Sub-supervisor de Portfolio & Risk
