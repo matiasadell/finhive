@@ -45,3 +45,6 @@ target-version = "py311"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "integration: pega contra Databricks/APIs reales; correr a mano, no en CI",
+]

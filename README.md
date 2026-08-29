@@ -27,10 +27,11 @@ Databricks Apps).
 Cada worker sigue el patrón ReAct; cada sub-supervisor compone sus workers como un
 sub-grafo de LangGraph; el supervisor raíz compone los cinco sub-grafos ("Hierarchical
 Agent Teams"). El detalle completo de decisiones de arquitectura está en
-[`docs/architecture/adr/0001-arquitectura-inicial.md`](docs/architecture/adr/0001-arquitectura-inicial.md),
-incluyendo un mapa explícito de qué concepto de arquitectura agéntica (ReAct, Reflexion,
-Self-RAG/CRAG, RAPTOR, Adaptive-RAG, Mixture-of-Agents, MCP, LLM Gateway, etc.) se aplica
-en qué parte del sistema.
+[`docs/architecture/adr/`](docs/architecture/adr/) (ADRs 0001-0004), incluyendo un mapa
+explícito de qué concepto de arquitectura agéntica (ReAct, Reflexion, Self-RAG/CRAG,
+RAPTOR, Adaptive-RAG, Mixture-of-Agents, MCP, LLM Gateway, etc.) se aplica en qué parte
+del sistema — MCP, por ejemplo, se resuelve como Unity Catalog Functions gobernadas
+(ADR 0004), no como los Managed MCP servers de Databricks (que facturan por invocación).
 
 Este proyecto nació de una investigación teórica propia sobre arquitecturas agénticas —
 ver [`docs/theory/main.pdf`](docs/theory/main.pdf) (timeline de 24 arquitecturas, 2020-2026)
@@ -80,7 +81,7 @@ obtenerlas (todas gratuitas o free-tier).
 - [x] Estructura de repo
 - [x] Infraestructura mínima de Databricks (schema, volume, vector search endpoint, secret scope)
 - [x] LLM: Foundation Model APIs nativos de Databricks verificados en vivo (Llama 3.3 70B / 3.1 8B), sin key externa
-- [ ] Sub-supervisor de Macro
+- [x] Sub-supervisor de Macro (3 workers ReAct + supervisor, tools sobre FRED registradas en Unity Catalog)
 - [ ] Sub-supervisor de Equity Research
 - [ ] Sub-supervisor de Portfolio & Risk
 - [ ] Sub-supervisor de News & Sentiment

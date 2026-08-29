@@ -13,6 +13,11 @@ Roadmap (fase de implementación, todavía no escrito):
 - `setup_secrets.py` — carga secrets al scope `finhive`; nunca imprime valores, lee
   desde un archivo local no trackeado o pide input interactivo vía la CLI.
 
+**`register_uc_functions.py`** (ya escrito, no es roadmap) — registra funciones Python
+como Unity Catalog Functions, genérico y reutilizable entre dominios. Es el reemplazo de
+los Managed MCP servers de Databricks (que facturan cómputo serverless por invocación) —
+ver ADR 0004. Uso: `uv run python infra/databricks/register_uc_functions.py`.
+
 El LLM **no requiere registrar un External Model**: se usan los Foundation Model APIs
 nativos de Databricks (`system.ai.*`), ya provisionados en el workspace y gratis en Free
 Edition — ver ADR 0003. Se evaluó Groq como External Model tipo `custom` (ADR 0002) pero
@@ -31,6 +36,6 @@ externa, mismo nivel de gobernanza vía AI Gateway.
 | LLM — supervisores | `databricks-meta-llama-3-3-70b-instruct` (`system.ai.llama_v3_3_70b_instruct`) | Query de prueba exitosa vía CLI, sin costo |
 | LLM — workers | `databricks-meta-llama-3-1-8b-instruct` (`system.ai.meta_llama_v3_1_8b_instruct`) | Ya `READY` |
 | Embeddings — Vector Search | `databricks-gte-large-en` (`system.ai.gte_large_en_v1_5`) | Ya `READY` |
+| UC Functions (dominio Macro) | `workspace.finhive.search_fred_series`, `.get_fred_series_latest`, `.get_fred_series_history` | Registradas y gobernadas en UC; ejecución real en proceso propio, no vía `UCFunctionToolkit` (ver ADR 0004) |
 
-Ver `docs/architecture/adr/0001-arquitectura-inicial.md`, `0002-groq-en-vez-de-anthropic.md`
-y `0003-modelos-nativos-databricks.md` para el historial completo de esta decisión.
+Ver `docs/architecture/adr/` (0001-0004) para el historial completo de estas decisiones.
