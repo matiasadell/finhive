@@ -12,6 +12,8 @@ Requiere `.env` completo y la CLI de Databricks autenticada.
 
 from __future__ import annotations
 
+import uuid
+
 import mlflow
 import mlflow.langchain
 import pytest
@@ -24,6 +26,9 @@ def test_top_supervisor_routes_to_macro_team():
     from finhive.graph import build_top_supervisor
 
     graph = build_top_supervisor()
+    # thread_id propio para no leer/ensuciar la sesión "default" compartida
+    # (memoria persistente, ADR 0012/0013) con otros tests o corridas.
+    config = {"configurable": {"thread_id": f"test-top-supervisor-{uuid.uuid4()}"}}
     result = graph.invoke(
         {
             "messages": [
@@ -32,7 +37,8 @@ def test_top_supervisor_routes_to_macro_team():
                     "¿Cómo viene el crecimiento del PIB (GDP) en Estados Unidos según los datos más recientes?",
                 )
             ]
-        }
+        },
+        config=config,
     )
 
     final_message = result["messages"][-1]

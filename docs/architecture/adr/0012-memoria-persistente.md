@@ -121,10 +121,21 @@ submódulo que efectivamente lo necesita, importado directo.
   globalmente, no los más relevantes a la pregunta actual — simplificación documentada,
   no bug.
 - Verificado en vivo (`tests/integration/test_memory.py`): dos `graph.invoke()`
-  separados con el mismo `thread_id` — el segundo, sin el historial recuperado, no tiene
-  forma de interpretar una pregunta de seguimiento ("¿y hace cuánto que lo consultamos
-  por primera vez?"); con `memory_recall_node` funcionando, sí. Threads distintos no
+  separados con el mismo `thread_id` — el segundo ("¿y cómo se compara ese precio con
+  el de hace un mes?"), sin el historial recuperado, no tiene forma de resolver a qué
+  precio se refiere; con `memory_recall_node` funcionando, sí. Threads distintos no
   comparten sesión (verificado por separado).
 - Nuevo script de infraestructura: `infra/databricks/setup_memory_tables.py`
   (idempotente, `CREATE TABLE IF NOT EXISTS`) — correrlo una vez antes de usar memoria
   persistente, igual que `register_uc_functions.py` para las tools.
+
+## Addenda (ADR 0013)
+
+Corriendo la evaluación formal se encontró que el orden original del pipeline
+(`input_guardrail` antes que `memory_recall`) rechazaba por error follow-ups financieros
+legítimos: el guardrail de entrada evaluaba el pedido sin el historial de sesión todavía
+antepuesto, y un follow-up sin palabras financieras propias ("¿y cómo se compara ese
+precio...?") se leía como fuera de tópico. El flujo real pasa a ser `START ->
+memory_recall -> input_guardrail -> supervisor -> ...` (no `input_guardrail ->
+memory_recall` como originalmente acá) — el guardrail de entrada ahora clasifica con el
+contexto ya recuperado a la vista. Detalle completo en ADR 0013.

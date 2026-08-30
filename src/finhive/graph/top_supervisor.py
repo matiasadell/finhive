@@ -195,15 +195,18 @@ def _make_team_node(team: str):
 def build_top_supervisor():
     """Compila el grafo jerárquico completo de FinHive.
 
-    El flujo real es `START -> input_guardrail -> memory_recall -> supervisor
+    El flujo real es `START -> memory_recall -> input_guardrail -> supervisor
     -> (equipos) -> supervisor -> ... -> output_guardrail -> memory_remember
     -> END`. Los guardrails (ADR 0011) y la memoria (ADR 0012) son nodos
     propios, no librerías aparte ni tools invocadas por el LLM: cada uno
-    corre una única vez por conversación. `input_guardrail` puede cortar
-    directo a END sin gastar ninguna llamada del supervisor ni tocar memoria
-    si el pedido está fuera de scope; `memory_recall` antepone el historial
-    del thread y los hechos de largo plazo antes de que el supervisor vea el
-    pedido; `output_guardrail` es el paso obligatorio antes de terminar
+    corre una única vez por conversación. `memory_recall` antepone el
+    historial del thread y los hechos de largo plazo ANTES de que
+    `input_guardrail` clasifique el pedido — necesario para que un follow-up
+    de sesión real ("¿y hace cuánto la consultamos?") no se rechace por
+    parecer, aislado, fuera de tópico (bug real encontrado y corregido, ver
+    ADR 0013). `input_guardrail` corta directo a END sin gastar ninguna
+    llamada del supervisor si el pedido (con ese contexto) sigue fuera de
+    scope; `output_guardrail` es el paso obligatorio antes de terminar
     (tanto si el supervisor decidió FINISH como si se cortó por
     `_MAX_ITERATIONS`); `memory_remember` persiste la conversación completa y
     extrae un hecho durable, si lo hay, antes de terminar.
@@ -222,5 +225,5 @@ def build_top_supervisor():
         builder.add_node(team, _make_team_node(team))
     builder.add_node("output_guardrail", output_guardrail_node)
     builder.add_node("memory_remember", memory_remember_node)
-    builder.add_edge(START, "input_guardrail")
+    builder.add_edge(START, "memory_recall")
     return builder.compile()

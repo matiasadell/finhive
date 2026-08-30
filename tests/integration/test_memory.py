@@ -38,10 +38,14 @@ def test_session_memory_persists_across_separate_invocations():
     assert first["messages"][-1].content, "la primera invocación no devolvió respuesta"
 
     # Sin este mecanismo, la segunda invocación arranca de cero y no tiene
-    # forma de saber a qué se refiere "eso" -- es la prueba real de que
-    # `memory_recall_node` está anteponiendo el historial guardado.
+    # forma de saber a qué se refiere "ese precio" -- es la prueba real de
+    # que `memory_recall_node` está anteponiendo el historial guardado. A
+    # propósito es un follow-up genuinamente financiero (no una pregunta
+    # sobre la charla en sí, como "¿hace cuánto lo preguntamos?" -- esa la
+    # rechaza el guardrail de entrada con razón, sea cual sea el contexto:
+    # no es una pregunta de research, es una pregunta sobre la conversación).
     second = graph.invoke(
-        {"messages": [("user", "¿Y hace cuánto que lo consultamos por primera vez en esta charla?")]},
+        {"messages": [("user", "¿Y cómo se compara ese precio con el de hace un mes?")]},
         config=config,
     )
     assert second["messages"][-1].content, "la segunda invocación no devolvió respuesta"

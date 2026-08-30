@@ -42,7 +42,10 @@ _SYSTEM_PROMPT = (
     "grounded='no' solo cuando haya una afirmación concreta (número, fecha, "
     "hecho puntual) sin respaldo visible en la evidencia; una respuesta que "
     "directamente admite no tener el dato, o que es puramente conversacional "
-    "sin cifras, cuenta como grounded='si'."
+    "sin cifras, cuenta como grounded='si'. Si la respuesta menciona nombres, "
+    "rankings u otros datos que sí coinciden con la evidencia, aunque no "
+    "repita cada cifra exacta de esa evidencia, también cuenta como "
+    "grounded='si' — falta de detalle no es lo mismo que alucinación."
 )
 
 
@@ -52,8 +55,18 @@ class _GroundednessCheck(TypedDict):
 
 
 def output_guardrail_node(state: FinHiveState) -> Command[Literal["memory_remember"]]:
-    """Clasifica si la respuesta final está respaldada por evidencia de las tools."""
-    llm = get_chat_model("worker", temperature=0.0)
+    """Clasifica si la respuesta final está respaldada por evidencia de las tools.
+
+    Usa el modelo `"supervisor"` (Llama 3.3 70B), no `"worker"` (Llama 3.1
+    8B) como el resto de los nodos deterministas de este módulo. Se
+    encontró corriendo la evaluación formal (ADR 0013) que el modelo worker
+    rechazaba como "no grounded" incluso una coincidencia literal palabra
+    por palabra entre respuesta y evidencia, con una razón fabricada — no
+    es un problema de prompt, el modelo de 8B no es confiable para esta
+    tarea de juicio semántico. Verificado en vivo: el mismo prompt con el
+    modelo de 70B juzga ese mismo caso correctamente como grounded.
+    """
+    llm = get_chat_model("supervisor", temperature=0.0)
     structured_llm = llm.with_structured_output(_GroundednessCheck)
 
     transcript = "\n\n".join(
@@ -72,11 +85,23 @@ def output_guardrail_node(state: FinHiveState) -> Command[Literal["memory_rememb
 
     reason = response.get("reason") or "no se encontró evidencia de tools para algunos datos citados"
     warning = (
-        "⚠️ Nota de verificación automática: parte de la respuesta anterior "
+        "\n\n⚠️ Nota de verificación automática: parte de la respuesta anterior "
         f"no pudo respaldarse con evidencia de las tools consultadas ({reason}). "
         "Tratá los datos específicos con cautela y verificalos de forma independiente."
     )
+    # Se ANTEPONE la respuesta original al warning en el mismo mensaje -- no
+    # se agrega el warning como mensaje aparte. Un warning aparte queda
+    # como el último mensaje del state, y cualquier consumidor que lea "el
+    # último mensaje" (el propio `finhive.evaluation.run_eval.target`, y el
+    # patrón que ya usan los tests de integración) pierde por completo la
+    # respuesta real, quedándose solo con el disclaimer y ningún dato. Se
+    # encontró corriendo el dataset dorado completo (ADR 0013): ~9 de 13
+    # respuestas de dominio quedaban así, con evidencia real de las tools
+    # debajo pero invisible para quien solo lee el último mensaje.
+    original_answer = str(state["messages"][-1].content)
     return Command(
-        update={"messages": [AIMessage(content=warning, name="output_guardrail")]},
+        update={
+            "messages": [AIMessage(content=original_answer + warning, name="output_guardrail")]
+        },
         goto="memory_remember",
     )

@@ -9,9 +9,9 @@ Databricks Apps).
 > ⚠️ **Este proyecto es una herramienta de research/análisis, no asesoramiento financiero
 > ni ejecución de trades reales.** Ver guardrails y disclaimers en `src/finhive/guardrails/`.
 
-> 🚧 **Estado**: los 5 dominios y el supervisor jerárquico completo ya funcionan
-> end-to-end contra Databricks real (ver checklist abajo). Falta guardrails, memoria
-> persistente, evaluación formal, demo desplegada y el artículo técnico.
+> 🚧 **Estado**: los 5 dominios, el supervisor jerárquico, guardrails de entrada/salida,
+> memoria persistente y evaluación formal (LangSmith + MLflow) ya funcionan end-to-end
+> contra Databricks real (ver checklist abajo). Falta la demo desplegada.
 
 ## Arquitectura
 
@@ -28,7 +28,7 @@ Databricks Apps).
 Cada worker sigue el patrón ReAct; cada sub-supervisor compone sus workers como un
 sub-grafo de LangGraph; el supervisor raíz compone los cinco sub-grafos ("Hierarchical
 Agent Teams"). El detalle completo de decisiones de arquitectura está en
-[`docs/architecture/adr/`](docs/architecture/adr/) (ADRs 0001-0012), incluyendo un mapa
+[`docs/architecture/adr/`](docs/architecture/adr/) (ADRs 0001-0013), incluyendo un mapa
 explícito de qué concepto de arquitectura agéntica (ReAct, Reflexion, Self-RAG/CRAG,
 RAPTOR, Adaptive-RAG, Mixture-of-Agents, MCP, LLM Gateway, etc.) se aplica en qué parte
 del sistema — MCP, por ejemplo, se resuelve como Unity Catalog Functions gobernadas
@@ -68,6 +68,7 @@ infra/databricks/  scripts de setup del workspace (catalog, vector search, secre
 docs/               teoría de base, ADRs de arquitectura, artículo técnico final
 tests/              unit + integration
 data/sample_docs/  corpus mínimo para smoke-tests locales (el corpus real vive en UC Volumes)
+data/eval/         dataset dorado de evaluación (data/eval/golden_set.json, ver ADR 0013)
 ```
 
 ## Quickstart (desarrollo local)
@@ -107,7 +108,7 @@ por cada uno de los 5 dominios más una pregunta cross-domain.
 - [x] Model service de embeddings gobernado por Unity AI Gateway (`finhive_embeddings`, GTE Large)
 - [x] Guardrails de entrada (moderación de tópico/scope) y salida (groundedness check), como nodos propios del grafo (ADR 0011)
 - [x] Memoria persistente: sesión (thread_id, entre invocaciones) + hechos de largo plazo estilo MemGPT, sobre tablas Delta en Unity Catalog (ADR 0012)
-- [ ] Evaluación (MLflow + LangSmith)
+- [x] Evaluación formal: dataset dorado de 15 preguntas (`data/eval/golden_set.json`), corrido vía `langsmith.evaluate()` — **routing accuracy 1.0, groundedness 0.85, latencia media 38.4s/pregunta** — resumen logueado en un Experiment de MLflow real en Databricks (ADR 0013, con 5 bugs reales encontrados y corregidos en el proceso)
 - [ ] Demo Streamlit desplegada
 - [x] Artículo técnico end-to-end (`docs/latex/finhive_article.tex`) + presentación LinkedIn (`docs/latex/finhive_presentation.tex`)
 

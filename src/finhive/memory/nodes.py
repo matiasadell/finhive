@@ -1,10 +1,16 @@
-"""Nodos de memoria del grafo: recall antes del supervisor, remember antes de terminar.
+"""Nodos de memoria del grafo: recall antes del guardrail de entrada, remember al final.
 
 Mismo criterio que `finhive.guardrails` (ver ADR 0011): nodos propios de
 LangGraph, no tools invocadas por el LLM en medio de una tarea — evita
 convertir al supervisor raíz, ya bastante cargado como router, en un agente
 de tool-calling además. `memory_recall_node` y `memory_remember_node` son
 pasos deterministas del pipeline, uno al principio y otro al final.
+
+`memory_recall_node` corre ANTES que `input_guardrail_node` (no después,
+como en la versión original de ADR 0012) — un follow-up de sesión real
+("¿y hace cuánto la consultamos?") no tiene ninguna palabra financiera
+propia; evaluado sin el historial ya recuperado, el guardrail de entrada lo
+bloqueaba por error. Ver ADR 0013.
 
 El `thread_id` viaja por el `RunnableConfig` estándar de LangGraph
 (`config={"configurable": {"thread_id": "..."}}`), no por el `FinHiveState`
@@ -34,7 +40,7 @@ def _thread_id_from_config(config: RunnableConfig) -> str:
 
 def memory_recall_node(
     state: FinHiveState, config: RunnableConfig
-) -> Command[Literal["supervisor"]]:
+) -> Command[Literal["input_guardrail"]]:
     """Antepone el historial guardado del thread y los hechos de largo plazo, si hay.
 
     `add_messages` (el reducer de `MessagesState`) solo agrega mensajes
@@ -61,7 +67,7 @@ def memory_recall_node(
         ] + new_messages
 
     return Command(
-        goto="supervisor",
+        goto="input_guardrail",
         update={"messages": [RemoveMessage(id=REMOVE_ALL_MESSAGES)] + new_messages},
     )
 

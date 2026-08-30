@@ -10,6 +10,8 @@ Requiere `.env` completo y la CLI de Databricks autenticada.
 
 from __future__ import annotations
 
+import uuid
+
 import mlflow
 import mlflow.langchain
 import pytest
@@ -22,8 +24,15 @@ def test_input_guardrail_blocks_offtopic_request():
     from finhive.graph import build_top_supervisor
 
     graph = build_top_supervisor()
+    # thread_id propio: desde que `memory_recall` corre antes que
+    # `input_guardrail` (ADR 0013), un thread compartido/reusado traería
+    # mensajes de equipo de turnos anteriores de OTRO test, y la aserción de
+    # abajo (ningún equipo invocado) daría falso negativo por ruido ajeno,
+    # no por un bug real.
+    config = {"configurable": {"thread_id": f"test-offtopic-{uuid.uuid4()}"}}
     result = graph.invoke(
-        {"messages": [("user", "Escribime un poema corto sobre gatos.")]}
+        {"messages": [("user", "Escribime un poema corto sobre gatos.")]},
+        config=config,
     )
 
     final_message = result["messages"][-1]
@@ -51,6 +60,7 @@ def test_financial_question_passes_both_guardrails():
     from finhive.graph import build_top_supervisor
 
     graph = build_top_supervisor()
+    config = {"configurable": {"thread_id": f"test-financial-{uuid.uuid4()}"}}
     result = graph.invoke(
         {
             "messages": [
@@ -59,7 +69,8 @@ def test_financial_question_passes_both_guardrails():
                     "¿Cuál es el precio actual de Bitcoin y cómo viene su tendencia reciente?",
                 )
             ]
-        }
+        },
+        config=config,
     )
 
     final_message = result["messages"][-1]

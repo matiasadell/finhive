@@ -171,6 +171,19 @@ def get_gateway_embeddings():
     )
 
 
+def get_databricks_workspace_email() -> str:
+    """Email del usuario autenticado en el workspace, vía `databricks.sdk.WorkspaceClient`.
+
+    Usado para armar el path del experimento de MLflow de evaluación
+    (`/Users/<email>/finhive-eval`, ver `finhive.evaluation.run_eval` y ADR
+    0013) — mismo auth ambiente (OAuth vía `DATABRICKS_CONFIG_PROFILE`) que
+    ya usa `register_uc_functions.py`, sin token estático nuevo.
+    """
+    from databricks.sdk import WorkspaceClient
+
+    return WorkspaceClient().current_user.me().user_name
+
+
 def get_chat_model(tier: Literal["supervisor", "worker"], temperature: float = 0.1):
     """Instancia un `ChatDatabricks` apuntando al endpoint correcto según el rol.
 

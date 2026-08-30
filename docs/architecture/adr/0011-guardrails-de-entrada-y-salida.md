@@ -90,3 +90,22 @@ END`.
 - Nuevo test: `tests/integration/test_guardrails.py` — un caso fuera de scope (verifica
   que ningún equipo de dominio se invoca) y un caso financiero real (verifica que pasa
   ambos guardrails y llega a delegar en un equipo).
+
+## Addenda (ADR 0013)
+
+Corriendo la evaluación formal se encontraron y corrigieron dos problemas reales de esta
+implementación original, sin volver a abrir esta ADR:
+
+1. **`output_guardrail_node` reemplazaba la respuesta real por el warning** en vez de
+   anteponerlo — cualquier consumidor que lea `messages[-1]` (incluida la evaluación
+   misma) perdía el dato real, quedándose solo con el disclaimer.
+2. **Ambos guardrails corrían en el modelo `"worker"` (Llama 3.1 8B), poco confiable
+   para juicio semántico** — verificado en vivo con un caso de groundedness trivial
+   (evidencia y respuesta idénticas) que el modelo de 8B igual marcaba como no
+   respaldado. Los dos pasan a usar `"supervisor"` (Llama 3.3 70B); en Free Edition
+   ambos tiers son gratis, el único costo es latencia.
+3. **Orden del pipeline**: `input_guardrail` pasó a correr *después* de
+   `memory_recall` (no antes) — evaluar un pedido sin el historial de sesión ya
+   antepuesto rechazaba por error follow-ups financieros legítimos.
+
+Detalle completo de cómo se encontró cada uno en ADR 0013.

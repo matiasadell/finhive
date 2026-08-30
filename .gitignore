@@ -43,9 +43,14 @@ mlartifacts/
 data/**
 !data/sample_docs/
 !data/sample_docs/README.md
+!data/eval/
+!data/eval/golden_set.json
 
 # OS / editor
 .DS_Store
 Thumbs.db
 .vscode/
 .idea/
+
+# Claude Code session metadata — not project content
+.claude/
