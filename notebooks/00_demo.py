@@ -52,6 +52,22 @@ dbutils.library.restartPython()
 
 # COMMAND ----------
 
+import sys
+
+# Red de seguridad: el editable install de arriba a veces no queda resuelto
+# por el import system después de este restart en cómputo Serverless (visto
+# en vivo: `pip show finhive` confirmaba el paquete instalado, pero
+# `importlib.util.find_spec("finhive")` devolvía `None` igual). Se agrega
+# `src/` directo al `sys.path` acá, inmediatamente después del restart —no
+# en la celda que arma el grafo— para que quede resuelto sin importar a qué
+# sección saltes después (ej. probar el AI Gateway sin haber armado el
+# grafo todavía). `REPO_PATH` no sobrevive al restart de la celda anterior,
+# así que se redefine acá.
+REPO_PATH = "/Workspace/Users/matiasadell@hotmail.com/finhive"
+sys.path.insert(0, f"{REPO_PATH}/src")
+
+# COMMAND ----------
+
 # MAGIC %md ## 2. Credenciales — desde Databricks Secrets, no desde un `.env`
 # MAGIC
 # MAGIC En local, `finhive.config.settings` lee estas keys de variables de entorno
@@ -85,18 +101,6 @@ print("Credenciales cargadas en el entorno (valores no impresos).")
 # MAGIC %md ## 3. Armar el grafo jerárquico completo
 
 # COMMAND ----------
-
-import sys
-
-# Red de seguridad: el editable install de arriba a veces no queda resuelto
-# por el import system después de `dbutils.library.restartPython()` en
-# cómputo Serverless (visto en vivo: `pip show finhive` confirmaba el
-# paquete instalado, pero `importlib.util.find_spec("finhive")` devolvía
-# `None` igual). Agregar `src/` directo al `sys.path` es la salida que
-# funcionó de forma reproducible; `REPO_PATH` no sobrevive al restart de
-# Python de la celda anterior, así que se redefine acá.
-REPO_PATH = "/Workspace/Users/matiasadell@hotmail.com/finhive"
-sys.path.insert(0, f"{REPO_PATH}/src")
 
 import mlflow
 import mlflow.langchain
