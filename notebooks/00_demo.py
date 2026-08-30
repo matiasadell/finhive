@@ -26,7 +26,25 @@ REPO_PATH = "/Workspace/Users/matiasadell@hotmail.com/finhive"
 
 # COMMAND ----------
 
-# MAGIC %pip install -e {REPO_PATH}
+# MAGIC %md
+# MAGIC **Ojo con las versiones**: `pyproject.toml` declara rangos abiertos
+# MAGIC (`langgraph>=0.3`, sin tope superior) — un `%pip install -e` resuelve el
+# MAGIC árbol de dependencias de cero cada vez que corre, y no hay garantía de
+# MAGIC que aterrice siempre en la misma combinación (visto en vivo: una
+# MAGIC reinstalación en medio de una sesión de debugging bajó a
+# MAGIC `langgraph==1.0.10` / `langgraph-prebuilt==1.0.13`, incompatibles entre sí
+# MAGIC — `ImportError: cannot import name 'ExecutionInfo' from
+# MAGIC 'langgraph.runtime'`). Para evitarlo, se instala `finhive` sin resolver
+# MAGIC dependencias (`--no-deps`) y después se clavan las versiones exactas ya
+# MAGIC validadas en `uv.lock` — la misma combinación que usa el entorno local.
+
+# COMMAND ----------
+
+# MAGIC %pip install -e {REPO_PATH} --no-deps
+
+# COMMAND ----------
+
+# MAGIC %pip install "langgraph==1.2.11" "langgraph-prebuilt==1.1.0" "langgraph-checkpoint==4.2.0" "langchain==1.3.18" "langchain-core==1.6.1" "databricks-langchain==0.20.0" "langgraph-supervisor==0.0.31"
 
 # COMMAND ----------
 
@@ -67,6 +85,18 @@ print("Credenciales cargadas en el entorno (valores no impresos).")
 # MAGIC %md ## 3. Armar el grafo jerárquico completo
 
 # COMMAND ----------
+
+import sys
+
+# Red de seguridad: el editable install de arriba a veces no queda resuelto
+# por el import system después de `dbutils.library.restartPython()` en
+# cómputo Serverless (visto en vivo: `pip show finhive` confirmaba el
+# paquete instalado, pero `importlib.util.find_spec("finhive")` devolvía
+# `None` igual). Agregar `src/` directo al `sys.path` es la salida que
+# funcionó de forma reproducible; `REPO_PATH` no sobrevive al restart de
+# Python de la celda anterior, así que se redefine acá.
+REPO_PATH = "/Workspace/Users/matiasadell@hotmail.com/finhive"
+sys.path.insert(0, f"{REPO_PATH}/src")
 
 import mlflow
 import mlflow.langchain
