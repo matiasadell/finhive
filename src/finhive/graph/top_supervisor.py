@@ -138,6 +138,19 @@ def _make_supervisor_node(members: list[str]):
     equipo delegar cada turno) usa `get_router_chat_model()` — pasa por el
     Unity AI Gateway con routing real entre dos modelos (ver ADR 0009/0010),
     en vez del endpoint único que usan los sub-supervisores de dominio.
+
+    El ejemplo concreto de FEDFUNDS en el prompt de abajo (con el cierre
+    "¿hay algo más en lo que pueda ayudarte?" incluido a propósito) se
+    agregó después de ver en vivo que, en preguntas ya completamente
+    respondidas, el 30% del tráfico del router que cae en GPT OSS 120B
+    seguía eligiendo re-invocar al mismo equipo en vez de FINISH —el otro
+    70% (Llama 3.3 70B) sí cortaba bien—, gastando 2 vueltas de más por
+    pregunta hasta toparse con `_MAX_ITERATIONS`. La instrucción abstracta
+    ("si ya contestó, respondé FINISH") ya estaba; se prueba acá si un
+    ejemplo concreto, con el mismo tipo de cierre conversacional que
+    confundía al router, alcanza para corregirlo sin tener que sacar ese
+    modelo del split (perdería la resiliencia real entre dos modelos que
+    es el punto de ADR 0009/0010).
     """
     options = ["FINISH", *members]
     team_lines = "\n".join(f"- {m}: {_TEAM_DESCRIPTIONS.get(m, '')}" for m in members)
@@ -152,8 +165,16 @@ def _make_supervisor_node(members: list[str]):
         "con resultados reales (no inventés vos ningún dato). Si el último "
         "mensaje de un equipo ya contesta la pregunta original del usuario, "
         "respondé FINISH inmediatamente — no vuelvas a consultar al mismo "
-        "equipo sobre algo que ya respondió. Este es un sistema de research, "
-        "no de asesoramiento financiero."
+        "equipo sobre algo que ya respondió, ni a ningún otro. Ejemplo "
+        "concreto: si el usuario preguntó la tasa de fondos federales y "
+        "macro respondió 'La tasa de fondos federales actual es del 3.63%, "
+        "según los datos más recientes disponibles en FRED. ¿Hay algo más "
+        "en lo que pueda ayudarte?' — la pregunta YA ESTÁ RESPONDIDA con un "
+        "dato concreto; next=FINISH en ese mismo turno. Que el equipo cierre "
+        "ofreciendo ayuda adicional es una fórmula conversacional, no una "
+        "señal de que falta información ni una razón para volver a "
+        "invocarlo. Este es un sistema de research, no de asesoramiento "
+        "financiero."
     )
 
     llm = get_router_chat_model()
