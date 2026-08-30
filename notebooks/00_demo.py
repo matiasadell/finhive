@@ -102,34 +102,10 @@ print("Credenciales cargadas en el entorno (valores no impresos).")
 
 # COMMAND ----------
 
-import os
 import uuid
 
 import mlflow
 import mlflow.langchain
-from mlflow.entities.trace_location import UnityCatalog
-
-from finhive.config.settings import SQL_WAREHOUSE_ID, UC_CATALOG, UC_SCHEMA
-
-# Trazas a Unity Catalog en vez del storage por-workspace default: quedan en
-# tablas Delta reales (`<catalog>.<schema>.finhive_traces_otel_*`),
-# consultables por SQL contra el mismo warehouse que ya usa la memoria
-# persistente (ADR 0012) -- útil para ver el detalle completo de una llamada
-# que falló (excepciones, spans) sin depender de copiar/pegar la traza desde
-# la UI, que trunca contenido largo. Un experimento solo puede asociarse a un
-# trace location de UC al CREARSE (no se puede re-asociar uno existente), por
-# eso se usa un experimento nuevo dedicado a la demo en vez de reusar
-# "finhive-eval" (ese ya existe sin este binding, ver run_eval.py).
-mlflow.set_tracking_uri("databricks")
-os.environ["MLFLOW_TRACING_SQL_WAREHOUSE_ID"] = SQL_WAREHOUSE_ID
-mlflow.set_experiment(
-    experiment_name="/Users/matiasadell@hotmail.com/finhive-demo-traces",
-    trace_location=UnityCatalog(
-        catalog_name=UC_CATALOG,
-        schema_name=UC_SCHEMA,
-        table_prefix="finhive_traces",
-    ),
-)
 
 mlflow.langchain.autolog()
 
