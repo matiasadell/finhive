@@ -41,8 +41,16 @@ SQL_WAREHOUSE_ID = "1a9a12e190f307b2"
 
 
 def get_fred_api_key() -> str:
-    """Lee FRED_API_KEY de env; falla explícito si no está configurada."""
-    key = os.getenv("FRED_API_KEY", "").strip()
+    """Lee FRED_API_KEY de env; falla explícito si no está configurada.
+
+    `.lstrip("\\ufeff")` además del `.strip()`: el secret de Databricks
+    quedó cargado con un BOM de UTF-8 al principio (típico de un archivo
+    guardado como "UTF-8 con BOM" en Windows) -- `str.strip()` no lo
+    considera whitespace, así que sobrevivía y FRED rechazaba la key con
+    "not a 32 character alpha-numeric lower-case string" aunque el valor
+    real de 32 caracteres fuera correcto. Visto en vivo corriendo la demo.
+    """
+    key = os.getenv("FRED_API_KEY", "").strip().lstrip("\ufeff")
     if not key:
         raise RuntimeError(
             "FRED_API_KEY no está seteada. Conseguila gratis en "
@@ -72,8 +80,11 @@ def get_alpha_vantage_api_key() -> str:
 
     Ojo: el free tier de Alpha Vantage es chico (históricamente ~25
     requests/día) — usar con cuidado en tests/desarrollo, no en loops.
+
+    `.lstrip("\ufeff")` igual que en `get_fred_api_key`: mismo riesgo de BOM
+    de UTF-8 si el secret se cargó desde un archivo de Windows.
     """
-    key = os.getenv("ALPHA_VANTAGE_API_KEY", "").strip()
+    key = os.getenv("ALPHA_VANTAGE_API_KEY", "").strip().lstrip("\ufeff")
     if not key:
         raise RuntimeError(
             "ALPHA_VANTAGE_API_KEY no está seteada. Conseguila gratis en "
@@ -83,8 +94,12 @@ def get_alpha_vantage_api_key() -> str:
 
 
 def get_tavily_api_key() -> str:
-    """Lee TAVILY_API_KEY de env; falla explícito si no está configurada."""
-    key = os.getenv("TAVILY_API_KEY", "").strip()
+    """Lee TAVILY_API_KEY de env; falla explícito si no está configurada.
+
+    `.lstrip("\ufeff")` igual que en `get_fred_api_key`: mismo riesgo de BOM
+    de UTF-8 si el secret se cargó desde un archivo de Windows.
+    """
+    key = os.getenv("TAVILY_API_KEY", "").strip().lstrip("\ufeff")
     if not key:
         raise RuntimeError(
             "TAVILY_API_KEY no está seteada. Conseguila gratis en "
