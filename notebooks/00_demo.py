@@ -102,6 +102,8 @@ print("Credenciales cargadas en el entorno (valores no impresos).")
 
 # COMMAND ----------
 
+import uuid
+
 import mlflow
 import mlflow.langchain
 
@@ -110,14 +112,28 @@ mlflow.langchain.autolog()
 from finhive.graph import build_top_supervisor
 
 graph = build_top_supervisor()
-print("Grafo jerárquico compilado: 5 equipos de dominio listos.")
+
+# Un thread_id nuevo por corrida del notebook, no un valor fijo -- la memoria
+# de sesión (ADR 0012) persiste de verdad en tablas Delta de Unity Catalog,
+# sobrevive a cualquier restart de Python. Con un thread_id fijo tipo
+# "default", cada vez que se re-corre el notebook (ej. debuggeando) el
+# historial de preguntas viejas de corridas anteriores se sigue acumulando y
+# se antepone a la pregunta actual -- visto en vivo: una pregunta de macro
+# devolvía equipos de crypto_alt mezclados, arrastrados de un `ask()` sobre
+# Bitcoin de una corrida anterior. Mismo hallazgo que ADR 0013 #5, aplicado acá
+# al notebook de demo en vez de a los tests de integración.
+DEMO_THREAD_ID = f"demo-{uuid.uuid4().hex[:8]}"
+print(f"Grafo jerárquico compilado: 5 equipos de dominio listos (thread_id: {DEMO_THREAD_ID}).")
 
 # COMMAND ----------
 
 
 def ask(question: str) -> None:
     """Invoca el supervisor raíz y muestra qué equipos respondieron y la respuesta final."""
-    result = graph.invoke({"messages": [("user", question)]})
+    result = graph.invoke(
+        {"messages": [("user", question)]},
+        config={"configurable": {"thread_id": DEMO_THREAD_ID}},
+    )
     teams = [m.name for m in result["messages"] if getattr(m, "name", None) and str(m.name).endswith("_team")]
     print(f"Pregunta: {question}")
     print(f"Equipos invocados: {teams}")
