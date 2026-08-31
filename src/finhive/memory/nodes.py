@@ -22,6 +22,7 @@ from __future__ import annotations
 
 from typing import Literal
 
+import mlflow
 from langchain_core.messages import RemoveMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph.message import REMOVE_ALL_MESSAGES
@@ -50,6 +51,13 @@ def memory_recall_node(
     y reconstruirlo entero en el orden correcto en la misma actualización.
     """
     thread_id = _thread_id_from_config(config)
+
+    # Etiqueta la traza de MLflow con el mismo thread_id que ya usa la
+    # memoria de sesión real (arriba) -- así las conversaciones se agrupan
+    # solas en la pestaña Observability > Sessions, sin mantener una noción
+    # de sesión aparte. Este nodo corre una única vez por invocación del
+    # grafo completo (siempre el primero), así que alcanza con hacerlo acá.
+    mlflow.update_current_trace(session_id=thread_id)
 
     history = load_session_history(thread_id)
     facts = recall_relevant_facts()
