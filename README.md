@@ -10,8 +10,9 @@ Databricks Apps).
 > ni ejecución de trades reales.** Ver guardrails y disclaimers en `src/finhive/guardrails/`.
 
 > 🚧 **Estado**: los 5 dominios, el supervisor jerárquico, guardrails de entrada/salida,
-> memoria persistente y evaluación formal (MLflow nativo) ya funcionan end-to-end
-> contra Databricks real (ver checklist abajo). Falta la demo desplegada.
+> memoria persistente, evaluación formal (MLflow nativo) y el despliegue como Agent
+> de Databricks ya funcionan end-to-end contra Databricks real (ver checklist abajo).
+> Falta la demo Streamlit desplegada.
 
 ## Arquitectura
 
@@ -109,6 +110,7 @@ por cada uno de los 5 dominios más una pregunta cross-domain.
 - [x] Guardrails de entrada (moderación de tópico/scope) y salida (groundedness check), como nodos propios del grafo (ADR 0011)
 - [x] Memoria persistente: sesión (thread_id, entre invocaciones) + hechos de largo plazo estilo MemGPT, sobre tablas Delta en Unity Catalog (ADR 0012)
 - [x] Evaluación formal: dataset dorado de 15 preguntas (`data/eval/golden_set.json`), corrido vía `mlflow.genai.evaluate()` — **routing accuracy 0.933, groundedness 0.917, latencia media 33.65s/pregunta** — resumen logueado en un Experiment de MLflow real en Databricks (ADR 0013 diseño original con LangSmith, con 5 bugs reales encontrados y corregidos en el proceso; ADR 0014 migró el harness a evaluación nativa de MLflow, con 1 bug real más encontrado en el proceso)
+- [x] Desplegado como Agent en Databricks (Mosaic AI Agent Framework): `mlflow.pyfunc.ResponsesAgent` sobre el grafo jerárquico completo, registrado en Unity Catalog y servido en un endpoint real (`agents_workspace-finhive-finhive_agent`) — privado (solo el creador tiene `CAN_QUERY`), con `scale_to_zero` para minimizar cómputo activo (ADR 0015, con 7 bugs reales encontrados y corregidos en el proceso)
 - [ ] Demo Streamlit desplegada
 - [x] Artículo técnico end-to-end (`docs/latex/finhive_article.tex`) + presentación LinkedIn (`docs/latex/finhive_presentation.tex`)
 
