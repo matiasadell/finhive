@@ -27,8 +27,11 @@ from pathlib import Path
 # imprime al terminar un run (ej. "🏃 View run..."), y tira
 # UnicodeEncodeError con la codepage cp1252 -- visto en vivo (ADR 0015),
 # corta el script después de loguear el modelo pero antes de
-# registrarlo/desplegarlo.
-sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+# registrarlo/desplegarlo. `reconfigure` no existe en el `OutStream` propio
+# que usa un notebook de Databricks -- ahí no hace falta igual (Linux, UTF-8
+# por default), así que se aplica solo si está disponible.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
