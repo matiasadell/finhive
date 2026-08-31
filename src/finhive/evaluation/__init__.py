@@ -1,1 +1,1 @@
-"""Evaluación de agentes: MLflow Tracing/Evaluate y LangSmith en paralelo."""
+"""Evaluación de agentes: MLflow Tracing + evaluación nativa de MLflow GenAI (ADR 0014)."""

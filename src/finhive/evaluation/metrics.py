@@ -1,13 +1,19 @@
-"""Evaluadores (row-level) para `langsmith.evaluate()` — ver `run_eval.py` y ADR 0013.
+"""Scorers (row-level) para `mlflow.genai.evaluate()` — ver `run_eval.py` y ADR 0014.
 
-Firma estándar de LangSmith: `evaluator(run, example) -> dict`. `run.outputs`
-es lo que devolvió `run_eval.target()` para ese ejemplo; `example.outputs`
-son los valores esperados del dataset dorado (`expected_teams`).
+Firma estándar de MLflow: `@scorer` sobre una función con argumentos
+keyword-only entre `inputs` (lo que recibió `predict_fn`), `outputs` (lo que
+devolvió `predict_fn` para ese ejemplo) y `expectations` (los valores
+esperados del dataset dorado, ej. `expected_teams`). Migrado desde
+`langsmith.evaluate()` (ADR 0013) sin cambiar la lógica de cada evaluador —
+solo la firma: `run.outputs` -> `outputs`, `example.outputs` -> `expectations`,
+`example.inputs` -> `inputs`.
 """
 
 from __future__ import annotations
 
 from typing import TypedDict
+
+from mlflow.genai.scorers import scorer
 
 from finhive.config.settings import get_chat_model
 
@@ -33,7 +39,8 @@ class _GroundednessScore(TypedDict):
     reason: str
 
 
-def routing_accuracy_evaluator(run, example) -> dict:
+@scorer
+def routing_accuracy(*, outputs: dict, expectations: dict) -> float:
     """1.0 si el/los equipo(s) invocados coinciden con lo esperado, 0.0 si no.
 
     Para preguntas de un solo dominio: exacto. Para cross-domain (2+ equipos
@@ -42,8 +49,8 @@ def routing_accuracy_evaluator(run, example) -> dict:
     scope (`expected_teams=[]`): correcto si `input_guardrail` bloqueó el
     pedido sin invocar ningún equipo.
     """
-    outputs = run.outputs or {}
-    expected_teams = set((example.outputs or {}).get("expected_teams", []))
+    outputs = outputs or {}
+    expected_teams = set((expectations or {}).get("expected_teams", []))
     actual_teams = set(outputs.get("actual_teams", []))
     blocked = bool(outputs.get("blocked", False))
 
@@ -52,21 +59,23 @@ def routing_accuracy_evaluator(run, example) -> dict:
     else:
         correct = (not blocked) and expected_teams.issubset(actual_teams)
 
-    return {"key": "routing_accuracy", "score": 1.0 if correct else 0.0}
+    return 1.0 if correct else 0.0
 
 
-def latency_evaluator(run, example) -> dict:
-    """Latencia de `graph.invoke()` en segundos, medida en `run_eval.target()`."""
-    outputs = run.outputs or {}
-    return {"key": "latency_seconds", "score": outputs.get("latency_seconds", 0.0)}
+@scorer
+def latency(*, outputs: dict) -> float:
+    """Latencia de `graph.invoke()` en segundos, medida en `run_eval.predict_fn()`."""
+    outputs = outputs or {}
+    return outputs.get("latency_seconds", 0.0)
 
 
-def groundedness_evaluator(run, example) -> dict:
+@scorer
+def groundedness(*, inputs: dict, outputs: dict) -> float | None:
     """LLM-judge (modelo supervisor, no worker) sobre si la respuesta cita evidencia real.
 
     No aplica a preguntas bloqueadas por `input_guardrail` (no hay respuesta
-    de dominio que evaluar) — devuelve `score=None` en ese caso, que
-    LangSmith/`to_pandas()` excluyen del promedio en vez de contarlo como 0.
+    de dominio que evaluar) — devuelve `None` en ese caso, que
+    `mlflow.genai.evaluate()` excluye del promedio en vez de contarlo como 0.
 
     Usa `"supervisor"` (Llama 3.3 70B), no `"worker"` (Llama 3.1 8B): en la
     primera corrida completa del dataset dorado, el modelo worker devolvía
@@ -74,16 +83,19 @@ def groundedness_evaluator(run, example) -> dict:
     palabra entre respuesta y evidencia, con una razón fabricada — no era
     un problema de prompt, el de 8B no es confiable para este juicio
     semántico. Mismo hallazgo aplicado retroactivamente a
-    `output_guardrail_node` (ADR 0011) — ver ADR 0013.
+    `output_guardrail_node` (ADR 0011) — ver ADR 0013. Se conserva este
+    prompt/judge propio tal cual en la migración a MLflow (ADR 0014) en vez
+    de adoptar el judge built-in `RetrievalGroundedness` — no hay necesidad
+    de re-validar un judge nuevo cuando este ya está probado.
     """
-    outputs = run.outputs or {}
+    outputs = outputs or {}
     if outputs.get("blocked"):
-        return {"key": "groundedness", "score": None, "comment": "bloqueado por input_guardrail"}
+        return None
 
     evidence = outputs.get("team_evidence", "")
     answer = outputs.get("answer", "")
     if not evidence:
-        return {"key": "groundedness", "score": None, "comment": "sin evidencia de equipos"}
+        return None
 
     llm = get_chat_model("supervisor", temperature=0.0)
     structured_llm = llm.with_structured_output(_GroundednessScore)
@@ -93,7 +105,7 @@ def groundedness_evaluator(run, example) -> dict:
             {
                 "role": "user",
                 "content": (
-                    f"Pregunta: {(example.inputs or {}).get('question', '')}\n\n"
+                    f"Pregunta: {(inputs or {}).get('question', '')}\n\n"
                     f"Respuesta final: {answer}\n\n"
                     f"Evidencia de los equipos:\n{evidence}"
                 ),
@@ -101,8 +113,4 @@ def groundedness_evaluator(run, example) -> dict:
         ]
     )
     grounded = str(response.get("grounded", "si")).strip().lower() in ("si", "sí", "yes", "true")
-    return {
-        "key": "groundedness",
-        "score": 1.0 if grounded else 0.0,
-        "comment": response.get("reason", ""),
-    }
+    return 1.0 if grounded else 0.0

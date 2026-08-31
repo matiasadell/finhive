@@ -13,4 +13,4 @@ Roadmap (fase de implementación, todavía no escrito):
 | `02_ingest_equity_filings.py` | Ingesta de 10-K/10-Q (SEC EDGAR) + construcción del árbol RAPTOR |
 | `03_build_vector_search_index.py` | Sincroniza el índice único de Databricks Vector Search |
 | `04_run_agent_graph.py` | Invoca el grafo jerárquico completo con una query de prueba |
-| `05_evaluate_agents.py` | Corre la suite de evaluación (MLflow Evaluate + LangSmith) |
+| `05_evaluate_agents.py` | Corre la suite de evaluación (`mlflow.genai.evaluate`) |

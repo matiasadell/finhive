@@ -10,7 +10,7 @@ Databricks Apps).
 > ni ejecución de trades reales.** Ver guardrails y disclaimers en `src/finhive/guardrails/`.
 
 > 🚧 **Estado**: los 5 dominios, el supervisor jerárquico, guardrails de entrada/salida,
-> memoria persistente y evaluación formal (LangSmith + MLflow) ya funcionan end-to-end
+> memoria persistente y evaluación formal (MLflow nativo) ya funcionan end-to-end
 > contra Databricks real (ver checklist abajo). Falta la demo desplegada.
 
 ## Arquitectura
@@ -54,7 +54,7 @@ implementada acá sobre un caso de uso financiero real.
 | Vector search | Databricks Vector Search sobre Unity Catalog (embeddings: GTE Large nativo de Databricks) |
 | Almacenamiento / catálogo | Unity Catalog (tablas, volumes) |
 | Memoria persistente | Tablas Delta en Unity Catalog (`workspace.finhive`), vía el SQL warehouse serverless (no Lakebase — ver ADR 0012) |
-| Observabilidad / evaluación | MLflow Tracing + MLflow Evaluate, LangSmith |
+| Observabilidad / evaluación | MLflow Tracing + evaluación nativa de MLflow GenAI (`mlflow.genai.evaluate`) |
 | Demo | Streamlit, desplegado como Databricks App |
 | Datos financieros | yfinance, SEC EDGAR, FRED, Alpha Vantage, CoinGecko, Tavily |
 
@@ -108,7 +108,7 @@ por cada uno de los 5 dominios más una pregunta cross-domain.
 - [x] Model service de embeddings gobernado por Unity AI Gateway (`finhive_embeddings`, GTE Large)
 - [x] Guardrails de entrada (moderación de tópico/scope) y salida (groundedness check), como nodos propios del grafo (ADR 0011)
 - [x] Memoria persistente: sesión (thread_id, entre invocaciones) + hechos de largo plazo estilo MemGPT, sobre tablas Delta en Unity Catalog (ADR 0012)
-- [x] Evaluación formal: dataset dorado de 15 preguntas (`data/eval/golden_set.json`), corrido vía `langsmith.evaluate()` — **routing accuracy 1.0, groundedness 0.85, latencia media 38.4s/pregunta** — resumen logueado en un Experiment de MLflow real en Databricks (ADR 0013, con 5 bugs reales encontrados y corregidos en el proceso)
+- [x] Evaluación formal: dataset dorado de 15 preguntas (`data/eval/golden_set.json`), corrido vía `mlflow.genai.evaluate()` — **routing accuracy 0.933, groundedness 0.917, latencia media 33.65s/pregunta** — resumen logueado en un Experiment de MLflow real en Databricks (ADR 0013 diseño original con LangSmith, con 5 bugs reales encontrados y corregidos en el proceso; ADR 0014 migró el harness a evaluación nativa de MLflow, con 1 bug real más encontrado en el proceso)
 - [ ] Demo Streamlit desplegada
 - [x] Artículo técnico end-to-end (`docs/latex/finhive_article.tex`) + presentación LinkedIn (`docs/latex/finhive_presentation.tex`)
 

@@ -1,9 +1,8 @@
 """Carga el dataset dorado de evaluación (`data/eval/golden_set.json`).
 
-Fuente de verdad única, versionada en git — se sube tanto a LangSmith (como
-Dataset, ver `run_eval.py`) como a MLflow (como tabla de resultados) desde
-acá, en vez de mantener el mismo set de preguntas escrito dos veces en dos
-UIs distintas.
+Fuente de verdad única, versionada en git — se pasa directo como `data` a
+`mlflow.genai.evaluate()` (ver `run_eval.py`), sin un paso previo de registro
+en ningún sistema aparte (ADR 0014 — antes se subía también a LangSmith).
 """
 
 from __future__ import annotations

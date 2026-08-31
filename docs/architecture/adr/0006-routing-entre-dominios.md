@@ -50,4 +50,4 @@ real (2026-10-29).
   prompt de routing por sí solo garantice.
 - No se agregó un test que cubra específicamente este caso de frontera (equity vs.
   news_sentiment) más allá del test de integración estándar de `news_sentiment` — quedaría
-  bien como caso de la futura suite de evaluación (MLflow Evaluate / LangSmith).
+  bien como caso de la futura suite de evaluación (MLflow Evaluate).

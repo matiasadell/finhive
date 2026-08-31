@@ -1,59 +1,44 @@
-"""Corre el dataset dorado contra el grafo completo; loguea a LangSmith y MLflow.
+"""Corre el dataset dorado contra el grafo completo; evalúa con MLflow GenAI nativo.
 
-El grafo corre UNA vez por pregunta — no dos: `langsmith.evaluate()` invoca
-`target()` (que llama a `build_top_supervisor().invoke(...)`) como parte de
-su propio harness, y los mismos resultados que produce esa corrida son los
-que se resumen y suben a MLflow después. Ver ADR 0013.
+El grafo corre UNA vez por pregunta: `mlflow.genai.evaluate()` invoca
+`predict_fn()` (que llama a `build_top_supervisor().invoke(...)`) internamente
+por cada ejemplo del dataset, y aplica los scorers de `metrics.py` sobre esos
+mismos resultados -- no hay una segunda corrida aparte. Migrado desde
+`langsmith.evaluate()` (ver ADR 0013 para el diseño original, ADR 0014 para
+la migración): ya no hace falta registrar el dataset dorado en ningún sistema
+aparte, se pasa directo como `data`.
 
 Uso:
     uv run python -m finhive.evaluation.run_eval
 
-Requiere `.env` completo (incluye `LANGSMITH_API_KEY`), la CLI de Databricks
-autenticada, y que `data/eval/golden_set.json` exista (ya versionado en git).
+Requiere `.env` completo, la CLI de Databricks autenticada, y que
+`data/eval/golden_set.json` exista (ya versionado en git).
 """
 
 from __future__ import annotations
 
-import json
-import tempfile
+import os
 import time
 import uuid
-from pathlib import Path
 
 import mlflow
-from langsmith import Client, evaluate
+import mlflow.langchain
 
-from finhive.config.settings import get_databricks_workspace_email
+# `mlflow.genai.evaluate()` corre `predict_fn` con hasta 10 preguntas en
+# paralelo por default (`MLFLOW_GENAI_EVAL_MAX_WORKERS`, no expuesto como
+# parámetro de la función, solo como env var). Verificado en vivo: con el
+# default, 10 preguntas concurrentes × ~4 llamadas LLM cada una saturan el
+# rate limit de 30 llamadas/usuario/min del tier supervisor (ADR 0008) más
+# rápido de lo que el rate-limiter adaptativo de MLflow puede compensar —
+# la corrida completa del dataset dorado terminó con `predict_fn` fallando
+# (excepción de rate-limit sin atrapar, no cubierta por `safe_tool`, que
+# solo envuelve tools de datos, no llamadas al LLM) en 14 de 15 preguntas.
+# Mismo mecanismo, mismo fix que `max_concurrency=1` con `langsmith.evaluate()`
+# (ver ADR 0013) — se fija en 1 antes de importar `mlflow.genai`.
+os.environ.setdefault("MLFLOW_GENAI_EVAL_MAX_WORKERS", "1")
+
 from finhive.evaluation.golden_set import load_golden_set
-from finhive.evaluation.metrics import (
-    groundedness_evaluator,
-    latency_evaluator,
-    routing_accuracy_evaluator,
-)
-
-_DATASET_NAME = "finhive-golden-set"
-
-
-def _log_results_table(df) -> None:
-    """Loguea los resultados como artifact JSON, sin pasar por `mlflow.log_table`.
-
-    `mlflow.log_table` serializa con el backend `ujson` de pandas, que se
-    rompe con `OverflowError: Unterminated UTF-8 sequence` ante texto real
-    de este dataset (probable objeto anidado que `to_pandas()` de LangSmith
-    deja en alguna columna de feedback, no un `str` plano — una limpieza de
-    caracteres célula por célula no alcanzó a evitarlo, se probó primero).
-    `json.dumps(default=str, ensure_ascii=True)` es a prueba de balas contra
-    esto: cualquier objeto no serializable cae a `str()`, y con
-    `ensure_ascii=True` el archivo final es ASCII puro, imposible de dejar
-    una secuencia UTF-8 mal formada al escribirlo. Se detectó corriendo el
-    dataset dorado completo dos veces — ver ADR 0013.
-    """
-    payload = json.dumps(df.to_dict(orient="records"), default=str, ensure_ascii=True, indent=2)
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        tmp_path = Path(tmp_dir) / "eval_results.json"
-        tmp_path.write_text(payload, encoding="utf-8")
-        mlflow.log_artifact(str(tmp_path))
-
+from finhive.evaluation.metrics import groundedness, latency, routing_accuracy
 
 _graph = None
 
@@ -67,19 +52,26 @@ def _get_graph():
     return _graph
 
 
-def target(inputs: dict) -> dict:
+@mlflow.trace
+def predict_fn(question: str) -> dict:
     """Corre una pregunta del dataset contra el grafo completo; thread_id nuevo cada vez.
 
     Un `thread_id` fresco por pregunta evita que la memoria de sesión (ADR
-    0012) mezcle el historial de una pregunta del dataset con otra — cada
-    ejemplo se evalúa de forma independiente.
+    0012) mezcle el historial de una pregunta del dataset con otra -- cada
+    ejemplo se evalúa de forma independiente. `mlflow.genai.evaluate()` pasa
+    el valor de `inputs["question"]` acá como argumento nombrado (el nombre
+    del parámetro tiene que matchear la clave de `inputs` en `_build_eval_data`).
+    Decorado con `@mlflow.trace` para garantizar una única traza por llamada,
+    como pide la documentación de `evaluate()` para funciones que no la emiten
+    solas (acá sí la emite `mlflow.langchain.autolog()`, pero el decorador no
+    tiene costo real y saca cualquier ambigüedad al respecto).
     """
     graph = _get_graph()
     thread_id = f"eval-{uuid.uuid4()}"
 
     start = time.perf_counter()
     result = graph.invoke(
-        {"messages": [("user", inputs["question"])]},
+        {"messages": [("user", question)]},
         config={"configurable": {"thread_id": thread_id}},
     )
     latency_seconds = time.perf_counter() - start
@@ -102,73 +94,55 @@ def target(inputs: dict) -> dict:
     }
 
 
-def _ensure_dataset(client: Client, golden_set: list[dict]) -> None:
-    """Crea el Dataset de LangSmith desde `golden_set.json` si todavía no existe."""
-    if client.has_dataset(dataset_name=_DATASET_NAME):
-        return
+def _build_eval_data(golden_set: list[dict]) -> list[dict]:
+    """Convierte el dataset dorado al formato `inputs`/`expectations` de `evaluate()`.
 
-    client.create_dataset(
-        dataset_name=_DATASET_NAME,
-        description=(
-            "Dataset dorado de FinHive: preguntas por dominio, cross-domain, "
-            "fuera de scope y un caso límite conocido (ver ADR 0006/0013). "
-            "Fuente de verdad: data/eval/golden_set.json en el repo."
-        ),
-    )
-    client.create_examples(
-        dataset_name=_DATASET_NAME,
-        examples=[
-            {
-                "inputs": {"question": item["question"]},
-                "outputs": {"expected_teams": item["expected_teams"]},
-                "metadata": {"id": item["id"], "category": item["category"]},
-            }
-            for item in golden_set
-        ],
-    )
+    `inputs` tiene que ser un dict cuyas claves matcheen los parámetros de
+    `predict_fn` (acá, `question`) -- `evaluate()` se lo pasa como kwargs.
+    """
+    return [
+        {
+            "inputs": {"question": item["question"]},
+            "expectations": {"expected_teams": item["expected_teams"]},
+        }
+        for item in golden_set
+    ]
 
 
 def main() -> None:
     golden_set = load_golden_set()
-    client = Client()
-    _ensure_dataset(client, golden_set)
-
-    results = evaluate(
-        target,
-        data=_DATASET_NAME,
-        evaluators=[routing_accuracy_evaluator, latency_evaluator, groundedness_evaluator],
-        experiment_prefix="finhive-eval",
-        # 1 a la vez: el tier supervisor del AI Gateway tiene rate limit de
-        # 30 llamadas/usuario/min (ADR 0008) -- correr las 15 preguntas en
-        # paralelo pegaría contra ese límite.
-        max_concurrency=1,
-    )
-    df = results.to_pandas()
 
     mlflow.set_tracking_uri("databricks")
+    mlflow.langchain.autolog()
+
+    from finhive.config.settings import get_databricks_workspace_email
+
     mlflow.set_experiment(f"/Users/{get_databricks_workspace_email()}/finhive-eval")
 
-    with mlflow.start_run(run_name=f"finhive-eval-{uuid.uuid4().hex[:8]}"):
-        mlflow.log_param("dataset", _DATASET_NAME)
-        mlflow.log_param("num_examples", len(golden_set))
-        mlflow.log_param("langsmith_experiment_url", results.url)
+    # `mlflow.genai.evaluate()` corre las filas de a una (no es thread-safe,
+    # documentado explícitamente) -- respeta el rate limit de 30
+    # llamadas/usuario/min del tier supervisor (ADR 0008) sin necesitar un
+    # parámetro de concurrencia explícito como el `max_concurrency=1` que sí
+    # hacía falta con `langsmith.evaluate()`.
+    results = mlflow.genai.evaluate(
+        predict_fn=predict_fn,
+        data=_build_eval_data(golden_set),
+        scorers=[routing_accuracy, latency, groundedness],
+    )
 
-        routing_col = [c for c in df.columns if "routing_accuracy" in c]
-        latency_col = [c for c in df.columns if "latency_seconds" in c]
-        grounded_col = [c for c in df.columns if "groundedness" in c]
-        if routing_col:
-            mlflow.log_metric("routing_accuracy", df[routing_col[0]].mean())
-        if latency_col:
-            mlflow.log_metric("avg_latency_seconds", df[latency_col[0]].mean())
-        if grounded_col:
-            grounded_values = df[grounded_col[0]].dropna()
-            if len(grounded_values):
-                mlflow.log_metric("groundedness", grounded_values.mean())
+    df = results.tables["eval_results"]
+    routing_mean = df["routing_accuracy/value"].mean()
+    latency_mean = df["latency/value"].mean()
+    grounded_values = df["groundedness/value"].dropna()
+    groundedness_mean = grounded_values.mean() if len(grounded_values) else None
 
-        _log_results_table(df)
-
-    print(f"LangSmith experiment: {results.url}")
-    print(df)
+    print(f"routing_accuracy promedio: {routing_mean:.3f}")
+    print(f"latencia promedio: {latency_mean:.2f}s")
+    if groundedness_mean is not None:
+        print(f"groundedness promedio: {groundedness_mean:.3f} (sobre {len(grounded_values)} preguntas de dominio)")
+    else:
+        print("groundedness: sin preguntas de dominio evaluadas")
+    print(f"\nVer el detalle completo en el experimento de MLflow: /Users/{get_databricks_workspace_email()}/finhive-eval")
 
 
 if __name__ == "__main__":
