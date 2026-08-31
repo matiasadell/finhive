@@ -56,8 +56,18 @@ from finhive.config.settings import (
 # `\`, que en Linux no son separador de path sino un carácter más del
 # nombre de archivo -- sin esto, mismo error con otra forma.
 # Asume que el script corre desde la raíz del repo, como dice `Uso:` arriba.
-_CHAT_AGENT_ABS_PATH = Path(__file__).resolve().parents[2] / "src" / "finhive" / "serving" / "chat_agent.py"
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_CHAT_AGENT_ABS_PATH = _REPO_ROOT / "src" / "finhive" / "serving" / "chat_agent.py"
 _CHAT_AGENT_PATH = Path(os.path.relpath(_CHAT_AGENT_ABS_PATH, start=os.getcwd())).as_posix()
+# El paquete `finhive` entero (no solo chat_agent.py) tiene que viajar con el
+# modelo -- `python_model=` solo empaqueta ese único archivo. Sin esto, el
+# contenedor de serving no tiene `finhive` instalado en absoluto: el
+# `pip install -e {REPO_PATH}` del notebook es un editable install apuntando
+# al path del Workspace, que el contenedor de serving no puede reconstruir
+# (no tiene acceso a esos archivos) -- visto en vivo, "No module named
+# 'finhive'" al invocar el endpoint ya desplegado (ADR 0015). `code_paths`
+# copia el directorio entero dentro del artifact y lo agrega a `sys.path`.
+_FINHIVE_PACKAGE_PATH = str(_REPO_ROOT / "src" / "finhive")
 _MODEL_NAME = f"{UC_CATALOG}.{UC_SCHEMA}.finhive_agent"
 
 
@@ -75,6 +85,7 @@ def main() -> None:
         logged_model = mlflow.pyfunc.log_model(
             python_model=_CHAT_AGENT_PATH,
             name="agent",
+            code_paths=[_FINHIVE_PACKAGE_PATH],
             resources=[
                 DatabricksServingEndpoint(endpoint_name=SUPERVISOR_MODEL_ENDPOINT),
                 DatabricksServingEndpoint(endpoint_name=WORKER_MODEL_ENDPOINT),
