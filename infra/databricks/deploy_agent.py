@@ -103,6 +103,23 @@ def main() -> None:
                 # de demo, con un PAT guardado como secret en vez del token
                 # efímero del contexto de notebook (que no existe acá).
             ],
+            # La inferencia automática de dependencias de log_model no captura
+            # langgraph/langchain como pines explícitos (solo detectó
+            # databricks-langchain y langchain-openai en requirements.txt) --
+            # quedan como transitivos de databricks-langchain, resueltos de
+            # cero al construirse el contenedor de serving, con el mismo
+            # riesgo de "resolver-luck" que ya se vio con el notebook de demo
+            # sin pinear (ImportError: ExecutionInfo, ver el fix de esa
+            # sesión) -- visto en vivo, el mismo error acá. Se fuerzan los
+            # mismos pines exactos ya validados.
+            extra_pip_requirements=[
+                "langgraph==1.2.11",
+                "langgraph-prebuilt==1.1.0",
+                "langgraph-checkpoint==4.2.0",
+                "langchain==1.3.18",
+                "langchain-core==1.6.1",
+                "langgraph-supervisor==0.0.31",
+            ],
         )
         print(f"Modelo logueado: {logged_model.model_uri}")
 
