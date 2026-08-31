@@ -49,6 +49,7 @@ def main() -> None:
         get_stock_fundamentals,
         get_stock_price_history,
         get_stock_quote,
+        search_filing_content,
         search_sec_filings,
     )
     from finhive.tools.macro_data import (
@@ -83,6 +84,7 @@ def main() -> None:
             calculate_sma,
             search_sec_filings,
             get_sec_company_facts,
+            search_filing_content,
             calculate_portfolio_volatility,
             calculate_portfolio_var,
             calculate_correlation_matrix,

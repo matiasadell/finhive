@@ -3,8 +3,7 @@
 Sistema multiagente **jerárquico** de análisis financiero: un supervisor raíz coordina
 cinco sub-supervisores especializados por dominio (macro, equity, portfolio/risk,
 news/sentiment, crypto), cada uno con sus propios workers — construido sobre LangGraph
-y desplegado sobre Databricks (Unity Catalog, Vector Search, Model Serving/AI Gateway,
-Databricks Apps).
+y desplegado sobre Databricks (Unity Catalog, Vector Search, Model Serving/AI Gateway).
 
 > ⚠️ **Este proyecto es una herramienta de research/análisis, no asesoramiento financiero
 > ni ejecución de trades reales.** Ver guardrails y disclaimers en `src/finhive/guardrails/`.
@@ -29,7 +28,7 @@ Databricks Apps).
 Cada worker sigue el patrón ReAct; cada sub-supervisor compone sus workers como un
 sub-grafo de LangGraph; el supervisor raíz compone los cinco sub-grafos ("Hierarchical
 Agent Teams"). El detalle completo de decisiones de arquitectura está en
-[`docs/architecture/adr/`](docs/architecture/adr/) (ADRs 0001-0013), incluyendo un mapa
+[`docs/architecture/adr/`](docs/architecture/adr/) (ADRs 0001-0017), incluyendo un mapa
 explícito de qué concepto de arquitectura agéntica (ReAct, Reflexion, Self-RAG/CRAG,
 RAPTOR, Adaptive-RAG, Mixture-of-Agents, MCP, LLM Gateway, etc.) se aplica en qué parte
 del sistema — MCP, por ejemplo, se resuelve como Unity Catalog Functions gobernadas
@@ -52,11 +51,11 @@ implementada acá sobre un caso de uso financiero real.
 | Orquestación de agentes | LangGraph (+ `langgraph-supervisor`) |
 | LLM | Foundation Model APIs nativos de Databricks (Llama 3.3 70B / Llama 3.1 8B), gratis en Free Edition, gobernados por AI Gateway |
 | Gateway / gobernanza | Databricks AI Gateway |
-| Vector search | Databricks Vector Search sobre Unity Catalog (embeddings: GTE Large nativo de Databricks) |
+| Vector search | Databricks Vector Search (Delta Sync, embeddings: GTE Large nativo) sobre el último 10-K de AAPL/MSFT — prueba de concepto de RAG narrativo, no cobertura general (ADR 0017) |
 | Almacenamiento / catálogo | Unity Catalog (tablas, volumes) |
 | Memoria persistente | Tablas Delta en Unity Catalog (`workspace.finhive`), vía el SQL warehouse serverless (no Lakebase — ver ADR 0012) |
 | Observabilidad / evaluación | MLflow Tracing + evaluación nativa de MLflow GenAI (`mlflow.genai.evaluate`) |
-| Demo | Streamlit, desplegado como Databricks App |
+| Demo | Streamlit sobre Databricks Apps (planeado, ver roadmap — todavía no implementado) |
 | Datos financieros | yfinance, SEC EDGAR, FRED, Alpha Vantage, CoinGecko, Tavily |
 
 ## Estructura del repo
@@ -64,10 +63,10 @@ implementada acá sobre un caso de uso financiero real.
 ```
 src/finhive/       paquete Python: agentes, tools, RAG, guardrails, memoria, evaluación
 notebooks/         notebooks de Databricks (Repos), orquestan sobre src/finhive
-app/                demo Streamlit desplegada como Databricks App
+app/                demo Streamlit, todavía sin implementar (ver app/README.md y roadmap)
 infra/databricks/  scripts de setup del workspace (catalog, vector search, secrets)
 docs/               teoría de base, ADRs de arquitectura, artículo técnico final
-tests/              unit + integration
+tests/              integration (end-to-end contra los grafos reales, sin mocks)
 data/sample_docs/  corpus mínimo para smoke-tests locales (el corpus real vive en UC Volumes)
 data/eval/         dataset dorado de evaluación (data/eval/golden_set.json, ver ADR 0013)
 ```
@@ -112,6 +111,7 @@ por cada uno de los 5 dominios más una pregunta cross-domain.
 - [x] Evaluación formal: dataset dorado de 15 preguntas, versionado en `data/eval/golden_set.json` y sincronizado a un `EvaluationDataset` de MLflow en Unity Catalog (`workspace.finhive.golden_set`, ADR 0016), corrido vía `mlflow.genai.evaluate()` — **routing accuracy 0.933, groundedness 1.0, latencia media 32.94s/pregunta** — resumen logueado en un Experiment de MLflow real en Databricks (ADR 0013 diseño original con LangSmith, con 5 bugs reales encontrados y corregidos en el proceso; ADR 0014 migró el harness a evaluación nativa de MLflow, con 1 bug real más encontrado en el proceso)
 - [x] Trazas agrupadas por conversación (Observability > Sessions) y monitoreo continuo del Agent en producción con un scorer de guidelines sobre una muestra del tráfico real (ADR 0016)
 - [x] Desplegado como Agent en Databricks (Mosaic AI Agent Framework): `mlflow.pyfunc.ResponsesAgent` sobre el grafo jerárquico completo, registrado en Unity Catalog y servido en un endpoint real (`agents_workspace-finhive-finhive_agent`) — privado (solo el creador tiene `CAN_QUERY`), con `scale_to_zero` para minimizar cómputo activo (ADR 0015, con 7 bugs reales encontrados y corregidos en el proceso)
+- [x] RAG real sobre 10-K de SEC EDGAR: ingesta del último 10-K de AAPL/MSFT, chunking e índice Delta Sync de Vector Search, nueva tool `search_filing_content` en el sub-supervisor de Equity Research para preguntas sobre contenido narrativo (riesgos, estrategia, MD&A) — alcance chico a propósito, prueba de concepto (ADR 0017)
 - [ ] Demo Streamlit desplegada
 - [x] Artículo técnico end-to-end (`docs/latex/finhive_article.tex`) + presentación LinkedIn (`docs/latex/finhive_presentation.tex`)
 

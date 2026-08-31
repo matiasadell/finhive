@@ -25,6 +25,10 @@ SUPERVISOR_MODEL_ENDPOINT = "databricks-meta-llama-3-3-70b-instruct"
 WORKER_MODEL_ENDPOINT = "databricks-meta-llama-3-1-8b-instruct"
 EMBEDDING_ENDPOINT = "databricks-gte-large-en"
 
+# --- Vector Search: RAG sobre 10-K de SEC EDGAR (ver ADR 0017) ---
+VECTOR_SEARCH_ENDPOINT = "finhive_vs_endpoint"
+EQUITY_FILINGS_INDEX = f"{UC_FULL_SCHEMA}.equity_filing_chunks_index"
+
 # --- Unity AI Gateway: model services con routing real (ver ADR 0009) ---
 # A diferencia de los endpoints de arriba (servidos vía ChatDatabricks, path
 # clásico /serving-endpoints/), estos son "model services" de Unity Catalog,

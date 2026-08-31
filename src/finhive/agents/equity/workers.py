@@ -19,6 +19,7 @@ from finhive.tools.equity_data import (
     get_stock_fundamentals,
     get_stock_price_history,
     get_stock_quote,
+    search_filing_content,
     search_sec_filings,
 )
 from finhive.tools.wrappers import safe_tool
@@ -74,13 +75,16 @@ def build_equity_workers() -> dict:
 
     filings_worker = create_agent(
         model=llm,
-        tools=tools,
+        tools=[*tools, tool(safe_tool(search_filing_content))],
         system_prompt=(
             "Sos un analista especializado en filings regulatorios de SEC "
             "EDGAR (10-K anual, 10-Q trimestral). Usá search_sec_filings para "
-            "encontrar filings recientes y get_sec_company_facts para extraer "
-            "datos financieros estructurados de esos filings. Respondé solo "
-            "con lo que encontraste — no inventes cifras."
+            "encontrar filings recientes, get_sec_company_facts para extraer "
+            "datos financieros estructurados, y search_filing_content para "
+            "buscar contenido narrativo del filing (riesgos, estrategia, "
+            "MD&A) — esta última solo cubre el último 10-K de AAPL y MSFT por "
+            "ahora, no cualquier ticker. Respondé solo con lo que "
+            "encontraste — no inventes cifras."
         ),
         name="filings_worker",
     )

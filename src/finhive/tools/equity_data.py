@@ -4,30 +4,40 @@ datos financieros estructurados (SEC EDGAR).
 Mismo patrón que `macro_data.py`: funciones planas, type hints, docstrings
 Google-style completos (fuente de verdad para el registro en Unity Catalog),
 sin parámetros con valor default (UC Functions no los admite).
+
+`sec_headers`, `ticker_to_cik` y `SEC_SUBMISSIONS_URL` son públicos (sin `_`)
+porque `finhive.rag.ingest` (ADR 0017) los reusa para bajar el texto completo
+de un filing en vez de duplicar la resolución de CIK.
 """
 
 from __future__ import annotations
 
 import requests
 
-from finhive.config.settings import get_sec_edgar_user_agent
+from finhive.config.settings import (
+    EQUITY_FILINGS_INDEX,
+    VECTOR_SEARCH_ENDPOINT,
+    get_databricks_host,
+    get_databricks_token,
+    get_sec_edgar_user_agent,
+)
 
 _SEC_TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
-_SEC_SUBMISSIONS_URL = "https://data.sec.gov/submissions/CIK{cik}.json"
+SEC_SUBMISSIONS_URL = "https://data.sec.gov/submissions/CIK{cik}.json"
 _SEC_CONCEPT_URL = "https://data.sec.gov/api/xbrl/companyconcept/CIK{cik}/us-gaap/{concept}.json"
 
 _cik_cache: dict[str, str] | None = None
 
 
-def _sec_headers() -> dict[str, str]:
+def sec_headers() -> dict[str, str]:
     return {"User-Agent": get_sec_edgar_user_agent()}
 
 
-def _ticker_to_cik(ticker: str) -> str:
+def ticker_to_cik(ticker: str) -> str:
     """Resuelve un ticker a su CIK (Central Index Key) de 10 dígitos, cacheado."""
     global _cik_cache
     if _cik_cache is None:
-        response = requests.get(_SEC_TICKERS_URL, headers=_sec_headers(), timeout=15)
+        response = requests.get(_SEC_TICKERS_URL, headers=sec_headers(), timeout=15)
         response.raise_for_status()
         _cik_cache = {
             row["ticker"].upper(): str(row["cik_str"]).zfill(10)
@@ -136,9 +146,9 @@ def search_sec_filings(ticker: str, form_type: str) -> str:
         Texto con hasta 5 filings recientes del tipo pedido: fecha y accession
         number (identificador único del filing en EDGAR).
     """
-    cik = _ticker_to_cik(ticker)
+    cik = ticker_to_cik(ticker)
     response = requests.get(
-        _SEC_SUBMISSIONS_URL.format(cik=cik), headers=_sec_headers(), timeout=15
+        SEC_SUBMISSIONS_URL.format(cik=cik), headers=sec_headers(), timeout=15
     )
     response.raise_for_status()
     recent = response.json()["filings"]["recent"]
@@ -169,9 +179,9 @@ def get_sec_company_facts(ticker: str, concept: str) -> str:
         Texto con los últimos 5 valores anuales (10-K) reportados para ese
         concepto, más recientes primero.
     """
-    cik = _ticker_to_cik(ticker)
+    cik = ticker_to_cik(ticker)
     response = requests.get(
-        _SEC_CONCEPT_URL.format(cik=cik, concept=concept), headers=_sec_headers(), timeout=15
+        _SEC_CONCEPT_URL.format(cik=cik, concept=concept), headers=sec_headers(), timeout=15
     )
     response.raise_for_status()
     units = response.json().get("units", {})
@@ -189,3 +199,42 @@ def get_sec_company_facts(ticker: str, concept: str) -> str:
         if len(lines) >= 5:
             break
     return f"{concept} de {ticker} (últimos años, USD):\n" + "\n".join(lines)
+
+
+def search_filing_content(ticker: str, query: str) -> str:
+    """Busca contenido narrativo (riesgos, estrategia, MD&A) dentro del 10-K de una empresa.
+
+    A diferencia de `get_sec_company_facts` (datos numéricos XBRL) o
+    `search_sec_filings` (metadata: fecha y accession number), esta función
+    devuelve extractos reales del texto del filing más relevantes para la
+    pregunta. Cobertura limitada por ahora: solo el último 10-K de AAPL y
+    MSFT (prueba de concepto de RAG, ver ADR 0017), no cualquier ticker.
+
+    Args:
+        ticker: símbolo bursátil (por ahora solo "AAPL" o "MSFT").
+        query: pregunta o tema a buscar dentro del filing (ej. "riesgos de
+            cadena de suministro", "estrategia de inteligencia artificial").
+
+    Returns:
+        Texto con hasta 3 extractos del 10-K más relevantes para la búsqueda,
+        con atribución al ticker de origen.
+    """
+    from databricks.ai_search.client import VectorSearchClient
+
+    client = VectorSearchClient(
+        workspace_url=get_databricks_host(),
+        personal_access_token=get_databricks_token(),
+        disable_notice=True,
+    )
+    index = client.get_index(endpoint_name=VECTOR_SEARCH_ENDPOINT, index_name=EQUITY_FILINGS_INDEX)
+    results = index.similarity_search(
+        columns=["ticker", "chunk_text"],
+        query_text=query,
+        filters={"ticker": ticker.upper()},
+        num_results=3,
+    )
+    rows = results.get("result", {}).get("data_array", [])
+    if not rows:
+        return f"No se encontró contenido del 10-K de '{ticker}' relacionado con '{query}'."
+    extracts = [f"Extracto del 10-K de {row[0]}:\n{row[1]}" for row in rows]
+    return "\n\n---\n\n".join(extracts)
