@@ -37,7 +37,7 @@ import mlflow.langchain
 # (ver ADR 0013) — se fija en 1 antes de importar `mlflow.genai`.
 os.environ.setdefault("MLFLOW_GENAI_EVAL_MAX_WORKERS", "1")
 
-from finhive.evaluation.golden_set import load_golden_set
+from finhive.evaluation.golden_set import load_golden_set, sync_uc_dataset
 from finhive.evaluation.metrics import groundedness, latency, routing_accuracy
 
 _graph = None
@@ -94,21 +94,6 @@ def predict_fn(question: str) -> dict:
     }
 
 
-def _build_eval_data(golden_set: list[dict]) -> list[dict]:
-    """Convierte el dataset dorado al formato `inputs`/`expectations` de `evaluate()`.
-
-    `inputs` tiene que ser un dict cuyas claves matcheen los parámetros de
-    `predict_fn` (acá, `question`) -- `evaluate()` se lo pasa como kwargs.
-    """
-    return [
-        {
-            "inputs": {"question": item["question"]},
-            "expectations": {"expected_teams": item["expected_teams"]},
-        }
-        for item in golden_set
-    ]
-
-
 def main() -> None:
     golden_set = load_golden_set()
 
@@ -117,7 +102,14 @@ def main() -> None:
 
     from finhive.config.settings import get_databricks_workspace_email
 
-    mlflow.set_experiment(f"/Users/{get_databricks_workspace_email()}/finhive-eval")
+    experiment = mlflow.set_experiment(f"/Users/{get_databricks_workspace_email()}/finhive-eval")
+
+    # `sync_uc_dataset` sube el dataset dorado a un EvaluationDataset de
+    # Unity Catalog (ADR 0016) -- da versionado y lineage (qué corrida usó
+    # qué versión del dataset) que un archivo JSON suelto no tiene.
+    # `data/eval/golden_set.json` sigue siendo la fuente de verdad, esto es
+    # una copia sincronizada, no un reemplazo (ver docstring de golden_set.py).
+    dataset = sync_uc_dataset(golden_set, experiment_id=experiment.experiment_id)
 
     # `mlflow.genai.evaluate()` corre las filas de a una (no es thread-safe,
     # documentado explícitamente) -- respeta el rate limit de 30
@@ -126,7 +118,7 @@ def main() -> None:
     # hacía falta con `langsmith.evaluate()`.
     results = mlflow.genai.evaluate(
         predict_fn=predict_fn,
-        data=_build_eval_data(golden_set),
+        data=dataset,
         scorers=[routing_accuracy, latency, groundedness],
     )
 
