@@ -25,7 +25,7 @@ REPO_PATH = "/Workspace/Users/matiasadell@hotmail.com/finhive"
 
 # COMMAND ----------
 
-# MAGIC %pip install "langgraph==1.2.11" "langgraph-prebuilt==1.1.0" "langgraph-checkpoint==4.2.0" "langchain==1.3.18" "langchain-core==1.6.1" "databricks-langchain==0.20.0" "langgraph-supervisor==0.0.31" "mlflow[databricks]>=3.1.0"
+# MAGIC %pip install "langgraph==1.2.11" "langgraph-prebuilt==1.1.0" "langgraph-checkpoint==4.2.0" "langchain==1.3.18" "langchain-core==1.6.1" "langchain-openai==1.6.0" "databricks-langchain==0.20.0" "langgraph-supervisor==0.0.31" "mlflow[databricks]>=3.1.0"
 
 # COMMAND ----------
 
