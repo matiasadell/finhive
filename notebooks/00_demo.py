@@ -74,30 +74,25 @@ def _run_agent_scenario(graph, question: str) -> str:
         )
 
 
-def main() -> None:
-    _OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
+_OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
 
-    df = load_portfolio_data().get_use_cases()
-    print(f"Portfolio cargado: {len(df)} casos de uso.\n")
+df = load_portfolio_data().get_use_cases()
+print(f"Portfolio cargado: {len(df)} casos de uso.\n")
 
-    print("Generando reporte ejecutivo (determinista, sin LLM)...")
-    report = render_executive_report(df)
-    report_path = _OUTPUTS_DIR / "demo_executive_report.md"
-    report_path.write_text(report, encoding="utf-8")
-    print(f"  -> {report_path}\n")
+print("Generando reporte ejecutivo (determinista, sin LLM)...")
+report = render_executive_report(df)
+report_path = _OUTPUTS_DIR / "demo_executive_report.md"
+report_path.write_text(report, encoding="utf-8")
+print(f"  -> {report_path}\n")
 
-    graph = build_top_supervisor(df)
+graph = build_top_supervisor(df)
 
-    for i, (name, question) in enumerate(_SCENARIOS, start=1):
-        print(f"Escenario {i}/{len(_SCENARIOS)}: {name}")
-        print(f"  Pregunta: {question}")
-        transcript = _run_agent_scenario(graph, question)
-        out_path = _OUTPUTS_DIR / f"demo_scenario_{i}_{name}.md"
-        out_path.write_text(f"# Escenario: {name}\n\n**Pregunta:** {question}\n\n{transcript}\n", encoding="utf-8")
-        print(f"  -> {out_path}\n")
+for i, (name, question) in enumerate(_SCENARIOS, start=1):
+    print(f"Escenario {i}/{len(_SCENARIOS)}: {name}")
+    print(f"  Pregunta: {question}")
+    transcript = _run_agent_scenario(graph, question)
+    out_path = _OUTPUTS_DIR / f"demo_scenario_{i}_{name}.md"
+    out_path.write_text(f"# Escenario: {name}\n\n**Pregunta:** {question}\n\n{transcript}\n", encoding="utf-8")
+    print(f"  -> {out_path}\n")
 
-    print("Demo completa. Ver outputs/ para los artefactos generados.")
-
-
-if __name__ == "__main__":
-    main()
+print("Demo completa. Ver outputs/ para los artefactos generados.")

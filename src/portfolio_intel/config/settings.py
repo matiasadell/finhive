@@ -99,19 +99,11 @@ def get_databricks_workspace_email() -> str:
 
 
 def get_chat_model(tier: Literal["supervisor", "worker"], temperature: float = 0.1):
-    """Instancia un `ChatDatabricks` apuntando al endpoint correcto según el rol.
+    """Instancia un `ChatDatabricks`: "supervisor" para routing, "worker" para tool-calling.
 
-    Args:
-        tier: "supervisor" para el top-level supervisor (routing, requiere más
-            capacidad de razonamiento); "worker" para los agentes de dominio
-            (tool-calling sobre las tools deterministas de `tools/`).
-        temperature: temperatura de muestreo, baja por default para
-            recomendaciones consistentes.
-
-    Esta llamada solo funciona con conexión real a Databricks -- en esta
-    máquina de desarrollo (ver `prompts/constraints_environment.md`) va a
-    fallar al invocar el modelo, no al construir el cliente; eso es esperado,
-    no un bug a perseguir acá.
+    Solo funciona con conexión real a Databricks -- en esta máquina de
+    desarrollo (ver `prompts/constraints_environment.md`) va a fallar al
+    invocar el modelo, no al construir el cliente; eso es esperado.
     """
     from databricks_langchain import ChatDatabricks
 
