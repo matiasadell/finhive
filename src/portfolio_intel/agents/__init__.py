@@ -1,1 +1,1 @@
-"""Supervisores de dominio y sus workers (macro, equity, portfolio_risk, news_sentiment, crypto_alt)."""
+"""Agentes ReAct de dominio: priorización, reuse/duplicación, value realization, recomendación."""

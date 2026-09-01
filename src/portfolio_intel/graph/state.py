@@ -1,12 +1,14 @@
-"""State schema compartido por el grafo jerárquico de FinHive.
+"""State schema del grafo jerárquico de Portfolio Intel.
 
-Extiende `MessagesState` (historial de mensajes) con `next` (el equipo de
-dominio al que el top-level supervisor decidió rutear — mismo patrón que la
-sección "Hierarchical Agent Teams" del notebook de referencia) y con
-`iterations`, un contador de vueltas supervisor→equipo→supervisor usado como
-límite duro de seguridad (ver `top_supervisor.py`): sin él, se observó al
-supervisor re-rutear al mismo equipo varias veces sobre una pregunta ya
-respondida, gastando cuota de requests sin necesidad.
+Extiende `MessagesState` con `iterations`, el mismo límite duro de
+seguridad que usa `top_supervisor.py` para evitar que el supervisor
+re-rutee al mismo agente sobre una pregunta ya respondida (mismo hallazgo
+real que documentó finhive en su propio `top_supervisor.py`, hoy en
+`docs/architecture/adr/finhive-legacy/`). A diferencia de `FinHiveState`, acá
+no hay `next` como campo de state aparte (el router lo devuelve vía
+`Command`, no hace falta persistirlo) ni ningún campo de memoria de sesión
+-- este proyecto no tiene memoria persistente entre invocaciones (ver
+`prompts/non_goals.md`), cada corrida analiza el portfolio actual desde cero.
 """
 
 from __future__ import annotations
@@ -14,6 +16,5 @@ from __future__ import annotations
 from langgraph.graph import MessagesState
 
 
-class FinHiveState(MessagesState):
-    next: str
+class PortfolioState(MessagesState):
     iterations: int
