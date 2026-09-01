@@ -1,28 +1,5 @@
-"""Generador de dataset sintético para el AI Use Case Inventory de la aseguradora.
-
-No hay CSVs reales todavía (ver `prompts/constraints_data.md`): este módulo
-genera un portfolio de 30 casos de uso, deliberadamente construido -- no
-relleno genérico -- para que cada escenario de la demo (Task 12) y del golden
-set de evaluación (Task 13) tenga casos concretos y nombrados en los que
-apoyarse:
-
-- 6 casos "scale" (alto impacto/confianza/escalabilidad, en producción)
-- 4 pares de casos casi-duplicados (mismo dominio, texto de
-  `business challenge`/`target state` con overlap fuerte, dueños distintos)
-- 5 casos "at risk"/"off track" de value realization (sobre-costo, timeline
-  de valor ya vencida para su stage actual, o barrera documentada)
-- 5 casos candidatos a discontinuar (baja confianza/impacto/escalabilidad,
-  estancados en Ideation/On Hold)
-- 6 casos "monitor" de relleno realista (ni destacan ni son un problema)
-
-`generate_use_cases() -> list[dict]` devuelve los 30 registros "master" (un
-dict por caso, con todos los campos que alimentan ambos CSVs). `write_csvs()`
-proyecta esos registros a los dos esquemas reales (`schema.py`) y escribe
-`data/sample_docs/rua_use_case_inventory.csv` y
-`data/sample_docs/ai_use_case_detail.csv`. Determinístico -- sin `random` sin
-seed fija -- para que el golden set (Task 13) pueda nombrar ids concretos con
-confianza de que no van a cambiar entre corridas.
-"""
+# Generador de dataset sintético (30 casos de uso, determinístico) -- ver
+# data/sample_docs/README.md para el detalle de los escenarios construidos.
 
 from __future__ import annotations
 
@@ -482,8 +459,6 @@ def _value_return_dates(stage: str, submission: date, tier: str) -> dict:
 
 
 def generate_use_cases() -> list[dict]:
-    """Arma los 30 registros master (un dict por caso) con todos los campos
-    necesarios para proyectar a los dos CSVs reales."""
     records = []
     for i, rec in enumerate(_RECORDS):
         stage = rec["stage"]
@@ -673,12 +648,6 @@ def _project_to_detail(records: list[dict]) -> pd.DataFrame:
 
 
 def write_csvs(output_dir: Path | None = None) -> tuple[Path, Path]:
-    """Genera los dos CSVs sintéticos en `data/sample_docs/` (o `output_dir`).
-
-    Devuelve las rutas escritas. `RUAI_JOIN_COLUMN`/`DETAIL_JOIN_COLUMN` de
-    `schema.py` quedan idénticas entre archivos por construcción (mismo
-    `title`), así que el join en `data/store.py` no tiene ids huérfanos.
-    """
     output_dir = output_dir or _SAMPLE_DOCS_DIR
     output_dir.mkdir(parents=True, exist_ok=True)
 

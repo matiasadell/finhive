@@ -1,26 +1,3 @@
-"""Value realization determinista: on_track / at_risk / off_track por caso de uso.
-
-Mismo principio que el resto de `tools/`: el status lo calculan estas
-funciones sobre columnas reales, nunca lo asume el LLM. Se combinan tres
-señales de riesgo binarias, cada una auditable de forma independiente:
-
-1. **cost_overrun** — `projected total investment` supera en más de 30% a
-   `planned investment`.
-2. **timeline_breach** — `value return begins in` ya pasó (relativo a
-   `as_of`) y el caso todavía está en un stage "pre-valor"
-   (`Ideation`/`Intake Review`/`Pilot`/`On Hold` -- `Limited Production` y
-   `Full Production` ya están generando valor real, así que no cuentan para
-   esta señal aunque su fecha de inicio también haya pasado).
-3. **documented_barrier** — `insight learned or barriers` tiene texto no
-   vacío (alguien ya documentó un bloqueo concreto).
-
-`value_status` = `off_track` si hay 2+ señales, `at_risk` si hay exactamente
-1, `on_track` si no hay ninguna. `as_of` default es `date.today()` -- el
-dataset sintético (`data/synthetic.py`) fue construido asumiendo "hoy" =
-2026-09-01 para el caso `UC-015`; si se regenera el dataset mucho después de
-esa fecha, revisar que las señales sigan disparando donde corresponde.
-"""
-
 from __future__ import annotations
 
 from datetime import date
@@ -29,6 +6,7 @@ import pandas as pd
 
 from portfolio_intel.tools.wrappers import safe_tool
 
+# value_status = off_track si 2+ de estas 3 señales, at_risk si 1, on_track si ninguna.
 _COST_OVERRUN_THRESHOLD = 1.3  # 30%+ sobre lo planeado
 _PRE_VALUE_STAGES = {"Ideation", "Intake Review", "Pilot", "On Hold"}
 
@@ -54,20 +32,13 @@ def _barrier_text(row: pd.Series, empty_label: str) -> str:
 
 def _documented_barrier(row: pd.Series) -> bool:
     value = row["insight learned or barriers"]
-    # pandas lee una celda vacía del CSV como NaN, no como string vacío --
-    # `str(nan)` es la string no-vacía "nan", así que hay que chequear NaN
-    # explícito antes de castear a string (si no, todas las filas sin
-    # barrera documentada disparaban esta señal igual).
+    # NaN != "" -- str(nan) da la string no-vacía "nan", hay que chequear NaN explícito.
     if pd.isna(value):
         return False
     return bool(str(value).strip())
 
 
 def compute_value_realization_status(df: pd.DataFrame, as_of: date | None = None) -> pd.DataFrame:
-    """Agrega `value_status` + las 3 columnas de señal (booleanas) al df.
-
-    No muta `df` -- devuelve una copia.
-    """
     as_of = as_of or date.today()
     out = df.copy()
     out["signal_cost_overrun"] = out.apply(_cost_overrun, axis=1)
@@ -85,7 +56,6 @@ def compute_value_realization_status(df: pd.DataFrame, as_of: date | None = None
 
 
 def get_at_risk_use_cases(df: pd.DataFrame, as_of: date | None = None) -> pd.DataFrame:
-    """Casos de uso con `value_status` in (`at_risk`, `off_track`)."""
     scored = (
         compute_value_realization_status(df, as_of)
         if "value_status" not in df.columns
@@ -95,7 +65,6 @@ def get_at_risk_use_cases(df: pd.DataFrame, as_of: date | None = None) -> pd.Dat
 
 
 def explain_value_status(df: pd.DataFrame, use_case_id: str, as_of: date | None = None) -> str:
-    """Renderiza qué señales dispararon (o no) el `value_status` de un caso."""
     scored = (
         compute_value_realization_status(df, as_of)
         if "value_status" not in df.columns
@@ -137,12 +106,8 @@ def _render_at_risk_table(df: pd.DataFrame) -> str:
 
 
 def build_value_realization_tools(df: pd.DataFrame) -> list:
-    """Arma la lista de tools LangChain del agente de value realization, atadas a `df`.
-
-    Import de `langchain_core.tools.tool` diferido a acá adentro -- ver la
-    misma nota en `prioritization_tools.build_prioritization_tools`.
-    """
     from langchain_core.tools import tool
+
     scored_df = compute_value_realization_status(df)
 
     def get_at_risk_use_cases_tool() -> str:

@@ -1,12 +1,3 @@
-"""`infra/databricks/setup_catalog.py` -- solo la generación de SQL, sin ejecutar nada.
-
-No hay conexión a Databricks en esta máquina (ver
-`prompts/constraints_environment.md`), así que esto no puede probar que el
-DDL/INSERT corren de verdad -- prueba que el SQL que se generaría contra el
-dataset real es válido: columnas correctas, tipos correctos, escaping de
-comillas, `NULL`s, y ninguna fila perdida.
-"""
-
 from __future__ import annotations
 
 import sys

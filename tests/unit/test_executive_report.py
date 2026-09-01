@@ -1,5 +1,3 @@
-"""`reporting/executive_report.py` -- reporte determinista, sin LLM."""
-
 from __future__ import annotations
 
 from portfolio_intel.reporting.executive_report import render_executive_report

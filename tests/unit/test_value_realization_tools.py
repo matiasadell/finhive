@@ -1,5 +1,3 @@
-"""`tools/value_realization_tools.py` -- 3 señales, sin LLM."""
-
 from __future__ import annotations
 
 from datetime import date
@@ -27,8 +25,6 @@ def test_scale_tier_is_on_track(use_cases_df):
 
 
 def test_missing_barrier_does_not_false_positive(use_cases_df):
-    """Regresión del bug real de NaN: una celda vacía de `insight learned or
-    barriers` no debe contar como señal de riesgo (ver commit de Tasks 5-8)."""
     scored = compute_value_realization_status(use_cases_df, as_of=date(2026, 9, 1))
     healthy = scored[scored["use case id"].isin(_SCALE_TIER_IDS)]
     assert not healthy["signal_documented_barrier"].any()

@@ -1,22 +1,3 @@
-"""Tests estructurales del grafo -- sin red, sin LLM real.
-
-A diferencia de `test_live_agents.py` (marcado `live`, corre solo en la
-compu de trabajo con Databricks real), esto corre en cualquier lado con
-`langgraph`/`langchain` instalados (ver
-`prompts/constraints_environment.md` y `CLAUDE.md` -- en esta máquina de
-desarrollo, con el intérprete del entorno conda `portfolio_intel`, no con
-el `python` de 3.14 del PATH).
-
-Cubre el control de flujo del grafo (`Command(goto=...)` de los guardrails
-y el router del supervisor) con un chat model fake
-(`fake_get_chat_model_factory`, `tests/conftest.py`) -- no simula el
-tool-calling interno de `create_agent` (eso es responsabilidad de
-LangChain, no de este proyecto), así que `build_top_supervisor()` se
-verifica hasta donde puede sin red: compila, y al invocarlo falla en el
-primer punto que sí necesita un LLM real, con un error de
-autenticación/conexión reconocible -- no un traceback de un bug de wiring.
-"""
-
 from __future__ import annotations
 
 from langchain_core.messages import AIMessage, HumanMessage
@@ -29,11 +10,6 @@ from portfolio_intel.guardrails.output_guardrail import output_guardrail_node
 
 
 def _state(messages) -> PortfolioState:
-    """Arma un `PortfolioState` con mensajes reales (`HumanMessage`/`AIMessage`),
-    no las tuplas `(role, content)` que sí acepta `graph.invoke()` -- esas
-    solo se normalizan a mensajes reales vía el reducer `add_messages` de
-    LangGraph cuando pasan por el grafo completo; llamando a un nodo directo
-    (como acá) hay que armarlos a mano."""
     real_messages = [
         HumanMessage(content=content) if role == "user" else AIMessage(content=content)
         for role, content in messages
@@ -125,8 +101,6 @@ def test_build_top_supervisor_compiles_without_network(use_cases_df):
 
 
 def test_graph_invoke_fails_at_llm_boundary_not_earlier(use_cases_df):
-    """Sin conexión a Databricks, invocar el grafo real tiene que fallar en
-    la llamada al LLM (auth/conexión) -- no antes, por un bug de wiring."""
     graph = build_top_supervisor(use_cases_df)
     try:
         graph.invoke({"messages": [("user", "¿Qué priorizamos?")]})
@@ -135,7 +109,7 @@ def test_graph_invoke_fails_at_llm_boundary_not_earlier(use_cases_df):
             "pasó, hay conexión real disponible; correr los tests `live` en "
             "vez de este."
         )
-    except Exception as e:  # noqa: BLE001 - a propósito, ver docstring
+    except Exception as e:  # noqa: BLE001
         message = str(e).lower()
         assert any(
             keyword in message

@@ -1,5 +1,3 @@
-"""`tools/duplication_tools.py` -- ver los 4 clusters engineered en `data/sample_docs/README.md`."""
-
 from __future__ import annotations
 
 from portfolio_intel.tools.duplication_tools import (
@@ -23,8 +21,6 @@ def test_finds_exactly_the_engineered_clusters(use_cases_df):
 
 
 def test_no_false_positives_across_unrelated_cases(use_cases_df):
-    """Regresión del bug real encontrado con la plantilla de texto genérica
-    (ver el commit de Tasks 5-8): casos sin relación real no deben matchear."""
     pairs = find_duplicate_use_cases(use_cases_df)
     all_ids_in_pairs = {p["use_case_id_a"] for p in pairs} | {p["use_case_id_b"] for p in pairs}
     expected_ids = {uid for cluster in _EXPECTED_CLUSTERS for uid in cluster}

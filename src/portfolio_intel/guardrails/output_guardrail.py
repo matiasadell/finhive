@@ -1,16 +1,3 @@
-"""Guardrail de salida: verifica grounding antes de entregar la respuesta final.
-
-Corre justo antes de `END` -- último nodo del grafo, tanto si el supervisor
-decidió FINISH como si se cortó por `_MAX_ITERATIONS`
-(`graph/top_supervisor.py`). Dado el diseño de "núcleo determinista" de este
-proyecto (ver PLAN.md, Key decisions), un agente que se porta bien casi
-siempre debería pasar este check -- los números y flags que cita vienen
-literal de una tool, no los inventa. Si este guardrail dispara seguido en la
-práctica, es señal de que algún prompt de agente no está siendo lo bastante
-explícito en "solo citá lo que la tool te dio", no de que el guardrail esté
-mal calibrado.
-"""
-
 from __future__ import annotations
 
 from typing import Literal, TypedDict
@@ -48,7 +35,6 @@ class _GroundednessCheck(TypedDict):
 
 
 def output_guardrail_node(state: PortfolioState) -> Command[Literal["__end__"]]:
-    """Clasifica si la respuesta final está respaldada por evidencia de las tools."""
     llm = get_chat_model("supervisor", temperature=0.0)
     structured_llm = llm.with_structured_output(_GroundednessCheck)
 

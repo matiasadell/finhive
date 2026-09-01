@@ -1,5 +1,3 @@
-"""Esquema, generador sintético y storage local -- ver `data/sample_docs/README.md`."""
-
 from __future__ import annotations
 
 from portfolio_intel.data.schema import (
@@ -13,7 +11,6 @@ from portfolio_intel.data.synthetic import generate_use_cases
 
 
 def test_generator_is_deterministic():
-    """Dos corridas del generador dan exactamente los mismos 30 registros."""
     first = generate_use_cases()
     second = generate_use_cases()
     assert first == second

@@ -1,39 +1,11 @@
-"""Priorización determinista: composite score explicable por caso de uso.
-
-Decisión de diseño central del proyecto (ver "Key decisions" en PLAN.md): el
-score nunca lo calcula el LLM -- lo calculan las funciones de acá, sobre
-columnas reales del dataset (`max impact`, `confidence level`,
-`projected total investment`, `current stage name`, `scalability`). El
-agente de prioridad (`agents/prioritization.py`) solo puede leer estos
-números via las tools de más abajo y narrarlos; si tuviera que "estimar" un
-score él mismo, sería exactamente el tipo de alucinación que el
-output_guardrail está pensado para atajar.
-
-## Pesos del composite (documentados acá porque son la base de la
-explicabilidad -- no están escondidos en un notebook aparte):
-
-- 35% impacto (`max impact`, normalizado min-max contra el resto del
-  portfolio)
-- 25% eficiencia de inversión (`max impact` / `projected total investment`,
-  impacto proyectado por dólar invertido, normalizado min-max)
-- 20% confianza (`confidence level`: Low=25, Medium=60, High=100)
-- 10% proximidad de stage (`current stage name`, más cerca de producción =
-  más alto: Ideation=10, On Hold=15, Intake Review=25, Pilot=50,
-  Limited Production=75, Full Production=100)
-- 10% escalabilidad (`scalability`: Low=25, Medium=60, High=100)
-
-Suman 1.0. Un caso en `Ideation` con `confidence=Low` nunca puede superar a
-uno en `Full Production` con `confidence=High` aunque tenga mayor impacto
-nominal -- a propósito: es más barato/rápido de verificar el impacto real de
-algo que ya está corriendo que el de algo que todavía es una idea.
-"""
-
 from __future__ import annotations
 
 import pandas as pd
 
 from portfolio_intel.tools.wrappers import safe_tool
 
+# Pesos del composite (35% impacto, 25% eficiencia de inversión, 20%
+# confianza, 10% stage, 10% escalabilidad). Nunca calculado por el LLM.
 _WEIGHTS = {
     "impact": 0.35,
     "investment_efficiency": 0.25,
@@ -57,18 +29,11 @@ _STAGE_PROXIMITY_SCORE = {
 def _min_max_normalize(series: pd.Series) -> pd.Series:
     low, high = series.min(), series.max()
     if high == low:
-        return pd.Series(50.0, index=series.index)  # todos iguales -> score neutro
+        return pd.Series(50.0, index=series.index)
     return (series - low) / (high - low) * 100.0
 
 
 def compute_priority_scores(df: pd.DataFrame) -> pd.DataFrame:
-    """Agrega `priority_score` (0-100) + las 5 columnas de componente al df.
-
-    No muta `df` -- devuelve una copia. Cada componente queda como columna
-    propia (`impact_score`, `investment_efficiency_score`,
-    `confidence_score`, `stage_proximity_score`, `scalability_score`) para
-    que `explain_priority_score` pueda citarlos exactamente, no re-derivarlos.
-    """
     out = df.copy()
     out["impact_score"] = _min_max_normalize(out["max impact"])
     investment_efficiency = out["max impact"] / out["projected total investment"].replace(0, pd.NA)
@@ -87,14 +52,11 @@ def compute_priority_scores(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def get_top_priorities(df: pd.DataFrame, n: int = 5) -> pd.DataFrame:
-    """Top `n` casos de uso por `priority_score`, descendente."""
     scored = compute_priority_scores(df) if "priority_score" not in df.columns else df
     return scored.sort_values("priority_score", ascending=False).head(n)
 
 
 def explain_priority_score(df: pd.DataFrame, use_case_id: str) -> str:
-    """Renderiza el breakdown exacto del score de un caso -- la evidencia
-    que el agente narra, nunca recalcula."""
     scored = compute_priority_scores(df) if "priority_score" not in df.columns else df
     rows = scored[scored["use case id"] == use_case_id]
     if rows.empty:
@@ -129,19 +91,6 @@ def _render_priority_table(df: pd.DataFrame) -> str:
 
 
 def build_prioritization_tools(df: pd.DataFrame) -> list:
-    """Arma la lista de tools LangChain del agente de priorización, atadas a `df`.
-
-    `df` es el snapshot del portfolio para esta invocación (ver
-    `graph/top_supervisor.py`) -- las tools no vuelven a leer el data store,
-    para que todos los agentes de una misma corrida vean exactamente los
-    mismos datos.
-
-    Import de `langchain_core.tools.tool` diferido a acá adentro (no al tope
-    del módulo): así el resto de este archivo -- las funciones puras que
-    reporting/evaluation llaman directo -- es importable y testeable en esta
-    máquina de desarrollo sin `langchain_core` instalado (ver
-    `prompts/constraints_environment.md`).
-    """
     from langchain_core.tools import tool
 
     scored_df = compute_priority_scores(df)

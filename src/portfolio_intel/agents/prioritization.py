@@ -1,13 +1,3 @@
-"""Agente de dominio: priorización del AI portfolio.
-
-ReAct agent (mismo patrón que los workers de finhive,
-`langchain.agents.create_agent`) sobre las tools deterministas de
-`tools/prioritization_tools.py`. El system prompt es explícito en que el
-agente no puede inventar ni ajustar un score él mismo -- solo puede citar
-los que ya calcularon las tools (ver el docstring de
-`tools/prioritization_tools.py` para el porqué).
-"""
-
 from __future__ import annotations
 
 import pandas as pd
@@ -30,7 +20,6 @@ _SYSTEM_PROMPT = (
 
 
 def build_prioritization_agent(df: pd.DataFrame):
-    """Compila el agente ReAct de priorización, con sus tools atadas a `df`."""
     tools = build_prioritization_tools(df)
     return create_agent(
         model=get_chat_model("worker"),

@@ -1,5 +1,3 @@
-"""`tools/prioritization_tools.py` -- ver el docstring del módulo para los pesos."""
-
 from __future__ import annotations
 
 from portfolio_intel.tools.prioritization_tools import (

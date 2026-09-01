@@ -1,5 +1,3 @@
-"""Guardrails de tópico (entrada) y groundedness (salida)."""
-
 from portfolio_intel.guardrails.input_guardrail import input_guardrail_node
 from portfolio_intel.guardrails.output_guardrail import output_guardrail_node
 

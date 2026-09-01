@@ -1,32 +1,7 @@
-"""Contrato de columnas de las dos fuentes reales del AI portfolio.
-
-Todo el resto del paquete importa los nombres de columna desde acá en vez de
-hardcodear strings sueltos -- así, cuando el usuario reemplace los CSVs
-sintéticos por los reales (mismo esquema, ver `prompts/constraints_data.md`),
-solo hay que verificar que los headers calcen con estas constantes.
-
-Dos correcciones de transcripción respecto del texto original pegado por el
-usuario (columnas de "AI Use Case Detail"), documentadas acá porque son una
-decisión de ingeniería, no un capricho:
-
-1. "use case" aparecía dos veces en la lista pegada (justo después de "phase
-   id", y de nuevo después de "sub lob"). Dado el resto del layout (no hay
-   ninguna otra columna que luzca como un ID/título distinto ahí), se trata
-   como un duplicado de transcripción -- se modela una sola columna "use
-   case", que además es la que sirve de join key contra `title` /
-   `AI Use Case Name` de RUAI Use Case. Si el CSV real efectivamente trae dos
-   columnas separadas ahí, hay que revisar este archivo.
-2. "planned opex" aparecía dos veces (una cerca de "prod investment window",
-   otra cerca de "planned investment"). Mismo criterio: se modela una sola
-   columna "planned opex".
-
-Además, tres typos evidentes del texto pegado por el usuario se corrigieron
-sin cambiar el significado: "sub kob" -> "sub lob", "ai kead name" -> "ai
-lead name", "ai devekoper name" -> "ai developer name", "secundary impact
-type" -> "secondary impact type", "impactedbusiness" -> "impacted business".
-"""
-
 from __future__ import annotations
+
+# Columnas exactas de las 2 fuentes reales. "use case"/"planned opex"
+# aparecían duplicadas en el texto original pegado -- se modelan una sola vez.
 
 # --- RUAI Use Case (inventario + tracking de aprobación) ---
 RUAI_USE_CASE_COLUMNS: list[str] = [
@@ -92,20 +67,11 @@ USE_CASE_DETAIL_COLUMNS: list[str] = [
     "products",
 ]
 
-# --- Join key entre los dos archivos ---
-# RUAI no tiene una columna de detalle único aparte de "use case id"/"title";
-# AI Use Case Detail no tiene columna de ID, solo el título en "use case". El
-# join real, entonces, es por coincidencia exacta de texto entre
-# RUAI["title"] y DETAIL["use case"] -- por eso el generador sintético
-# (`synthetic.py`) mantiene ambos strings idénticos por diseño, y cualquier
-# fuente real tiene que respetar esa misma convención para que el join ande.
+# Join por coincidencia exacta de texto: RUAI["title"] <-> DETAIL["use case"].
 RUAI_JOIN_COLUMN = "title"
 DETAIL_JOIN_COLUMN = "use case"
 
-# --- Vocabularios controlados usados por el generador sintético y las tools ---
-# No son parte del "contrato" con el CSV real (esas columnas son texto libre
-# en la fuente real) -- viven acá porque son el vocabulario que el generador
-# sintético (Task 3) y las tools deterministas (Task 5-8) comparten.
+# Vocabulario compartido por el generador sintético y las tools.
 LIFECYCLE_STAGES: list[str] = [
     "Ideation",
     "Intake Review",

@@ -1,16 +1,3 @@
-"""Acceso a los datos del portfolio: interfaz única, dos backends.
-
-Todo lo que está aguas abajo (tools de Task 5-8, agentes, reporte) llama
-`load_portfolio_data()` y usa `PortfolioDataStore.get_use_cases()` -- nunca
-importa `LocalCSVStore`/`DatabricksDeltaStore` directamente, así que nada
-cambia cuando el backend cambia (ver `config.settings.get_data_backend`).
-
-`LocalCSVStore` es lo único que corre en esta máquina de desarrollo (ver
-`prompts/constraints_environment.md`). `DatabricksDeltaStore` está escrito
-para funcionar de verdad contra Unity Catalog, pero no se puede ejercitar
-acá -- se verifica recién en la compu de trabajo.
-"""
-
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -31,23 +18,13 @@ _SAMPLE_DOCS_DIR = Path(__file__).resolve().parents[3] / "data" / "sample_docs"
 
 
 class PortfolioDataStore(ABC):
-    """Interfaz común para leer el AI Use Case Inventory, sea cual sea el backend."""
+    @abstractmethod
+    def get_ruai_inventory(self) -> pd.DataFrame: ...
 
     @abstractmethod
-    def get_ruai_inventory(self) -> pd.DataFrame:
-        """Devuelve el esquema "RUAI Use Case" tal cual (ver `schema.py`)."""
-
-    @abstractmethod
-    def get_use_case_detail(self) -> pd.DataFrame:
-        """Devuelve el esquema "AI Use Case Detail" tal cual (ver `schema.py`)."""
+    def get_use_case_detail(self) -> pd.DataFrame: ...
 
     def get_use_cases(self) -> pd.DataFrame:
-        """Vista conveniencia: join de ambos esquemas, una fila por caso de uso.
-
-        Implementación por default sobre `get_ruai_inventory`/
-        `get_use_case_detail` -- ningún backend necesita sobreescribir esto,
-        el join en sí no depende de dónde vinieron los datos.
-        """
         ruai = self.get_ruai_inventory()
         detail = self.get_use_case_detail()
         merged = ruai.merge(
@@ -70,12 +47,6 @@ class PortfolioDataStore(ABC):
 
 
 class LocalCSVStore(PortfolioDataStore):
-    """Lee los dos CSVs sintéticos de `data/sample_docs/` vía pandas.
-
-    Es el backend usado en toda esta máquina de desarrollo -- ver
-    `data/sample_docs/README.md` para cómo (re)generarlos.
-    """
-
     def __init__(self, sample_docs_dir: Path | None = None) -> None:
         self._dir = sample_docs_dir or _SAMPLE_DOCS_DIR
 
@@ -99,19 +70,6 @@ class LocalCSVStore(PortfolioDataStore):
 
 
 class DatabricksDeltaStore(PortfolioDataStore):
-    """Lee las tablas Delta reales de `workspace.portfolio_intel` en Unity Catalog.
-
-    Mismo patrón que `execute_sql` de finhive (`memory/store.py`, hoy
-    archivado en `finhive-legacy`): Statement Execution API contra el SQL
-    warehouse serverless, autenticado vía `databricks.sdk.WorkspaceClient`
-    (OAuth ambiente, `DATABRICKS_CONFIG_PROFILE`). No se puede ejercitar
-    desde esta máquina de desarrollo -- ver
-    `prompts/constraints_environment.md`. Las dos tablas
-    (`UC_TABLE_USE_CASE_INVENTORY`, `UC_TABLE_USE_CASE_DETAIL`) se crean/
-    cargan con `infra/databricks/setup_catalog.py` (ver ADR 0007), tampoco
-    ejercitado desde acá.
-    """
-
     def __init__(self, warehouse_id: str | None = None) -> None:
         self._warehouse_id = warehouse_id or get_sql_warehouse_id()
 
@@ -133,21 +91,14 @@ class DatabricksDeltaStore(PortfolioDataStore):
         rows = response.result.data_array if response.result and response.result.data_array else []
         df = pd.DataFrame(rows, columns=columns)
 
-        # La Statement Execution API siempre devuelve `data_array` como
-        # strings, sea cual sea el tipo real de la columna Delta -- sin
-        # castear, `df["max impact"] / df["projected total investment"]` (y
-        # cualquier otra cuenta de tools/*.py) rompería con TypeError contra
-        # este backend, aunque LocalCSVStore (donde pandas infiere tipos
-        # solo) las mismas cuentas anden bien. Se castea según
-        # `manifest.schema.columns[i].type_name`, no a ciegas.
+        # data_array siempre llega como strings -- castear según el tipo
+        # real de la columna Delta, si no las cuentas numéricas de tools/*.py rompen.
         for col in schema_columns:
             type_name = str(col.type_name.value if hasattr(col.type_name, "value") else col.type_name)
             if type_name in ("INT", "BIGINT", "SMALLINT", "TINYINT", "DOUBLE", "FLOAT", "DECIMAL"):
                 df[col.name] = pd.to_numeric(df[col.name], errors="coerce")
             elif type_name in ("DATE", "TIMESTAMP"):
                 df[col.name] = pd.to_datetime(df[col.name], errors="coerce")
-            # STRING/BOOLEAN/etc. quedan como vinieron (object) -- mismo tipo
-            # que devuelve pandas.read_csv para columnas de texto.
         return df
 
     def get_ruai_inventory(self) -> pd.DataFrame:
@@ -158,12 +109,6 @@ class DatabricksDeltaStore(PortfolioDataStore):
 
 
 def load_portfolio_data() -> PortfolioDataStore:
-    """Factory: devuelve el backend correcto según `get_data_backend()`.
-
-    Todo el resto del sistema llama a esto, nunca instancia
-    `LocalCSVStore`/`DatabricksDeltaStore` directamente -- mismo criterio de
-    centralización que `config.settings.get_chat_model`.
-    """
     backend = get_data_backend()
     if backend == "local":
         return LocalCSVStore()

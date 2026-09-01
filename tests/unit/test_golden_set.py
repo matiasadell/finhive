@@ -1,10 +1,3 @@
-"""El golden set completo (`data/eval/golden_set.json`) tiene que pasar 100%.
-
-Si algo de acá falla, es un bug real en la lógica determinista de `tools/`
-o una expectativa mal calibrada en el golden set -- no un flake, no un
-umbral a relajar (ver `evaluation/metrics.py`).
-"""
-
 from __future__ import annotations
 
 from portfolio_intel.evaluation.golden_set import load_golden_set

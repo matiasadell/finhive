@@ -1,24 +1,5 @@
-"""Demo de Portfolio Intel: 4 escenarios end-to-end, con outputs reales.
-
-A diferencia del `00_demo.py` de finhive (celdas de notebook `# COMMAND
-----------`, pensado para correr solo dentro de un notebook de Databricks
-Repos vía `dbutils`), este es un script Python plano -- corre tal cual con
-`python notebooks/00_demo.py` en esta máquina de desarrollo, y también sirve
-sin cambios como notebook de Databricks Repos (`Run All`) una vez ahí, sin
-depender de `dbutils` para nada de su lógica propia.
-
-Cada escenario hace dos cosas:
-1. Invoca el grafo completo de agentes (`build_top_supervisor`) -- esto
-   necesita un LLM real vía Databricks, así que en esta máquina de
-   desarrollo falla en la llamada al modelo (ver
-   `prompts/constraints_environment.md`); el fallo se atrapa y se explica,
-   no se deja como traceback crudo.
-2. Llama `render_executive_report` directo -- 100% determinista, sin LLM,
-   corre siempre. Es la parte que de verdad se puede verificar acá.
-
-Los outputs (transcript del grafo si corrió, y el reporte ejecutivo) se
-escriben a `outputs/demo_scenario_{n}_*.md`.
-"""
+# Demo de Portfolio Intel: 4 escenarios end-to-end. Script plano, corre local
+# (python notebooks/00_demo.py) o como notebook de Databricks Repos.
 
 from __future__ import annotations
 
@@ -55,7 +36,6 @@ _SCENARIOS = [
 
 
 def _run_agent_scenario(graph, question: str) -> str:
-    """Invoca el grafo; devuelve el transcript o una explicación del fallo esperado."""
     try:
         result = graph.invoke({"messages": [("user", question)]})
         agent_messages = [
@@ -66,7 +46,7 @@ def _run_agent_scenario(graph, question: str) -> str:
         lines = [f"Agentes invocados: {[m.name for m in agent_messages]}", ""]
         lines.append(f"Respuesta final:\n{result['messages'][-1].content}")
         return "\n".join(lines)
-    except Exception as e:  # noqa: BLE001 - a propósito, ver docstring del módulo
+    except Exception as e:  # noqa: BLE001
         return (
             "⚠️ No se pudo invocar el grafo de agentes (esperado en esta máquina "
             "de desarrollo, sin conexión a Databricks -- ver "

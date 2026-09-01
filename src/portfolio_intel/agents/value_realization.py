@@ -1,10 +1,3 @@
-"""Agente de dominio: value realization del AI portfolio.
-
-ReAct agent sobre `tools/value_realization_tools.py`. Responde qué casos de
-uso no están en camino de realizar el valor prometido -- sobre-costo,
-timeline de valor vencida, o una barrera ya documentada por el equipo dueño.
-"""
-
 from __future__ import annotations
 
 import pandas as pd
@@ -26,7 +19,6 @@ _SYSTEM_PROMPT = (
 
 
 def build_value_realization_agent(df: pd.DataFrame):
-    """Compila el agente ReAct de value realization, con sus tools atadas a `df`."""
     tools = build_value_realization_tools(df)
     return create_agent(
         model=get_chat_model("worker"),

@@ -1,38 +1,3 @@
-"""Síntesis de recomendación determinista: scale / consolidate / reduce / discontinue.
-
-Compone las tres tools anteriores (`prioritization_tools`,
-`duplication_tools`, `value_realization_tools`) y aplica una tabla de reglas
-explícita -- nunca le pide al LLM que "decida" la acción, solo que la narre.
-Esta es la tool que respalda directamente el deliverable de "executive
-recommendation output" del challenge (ver `reporting/executive_report.py`,
-Task 11).
-
-## Tabla de reglas (en orden de precedencia -- la primera que aplica gana)
-
-1. **Consolidate** — el caso aparece en algún par de duplicados
-   (`duplication_tools.duplicated_use_case_ids`), sea cual sea su propio
-   `priority_score` o `value_status`. Construir/mantener dos veces lo mismo
-   es un desperdicio de inversión incluso si ambas versiones andan bien
-   individualmente -- la acción correcta es consolidar, no compararlas por
-   score.
-2. **Discontinue** — no está duplicado, `priority_score` bajo
-   (`< _LOW_PRIORITY_THRESHOLD`), y además `value_status` en (`at_risk`,
-   `off_track`) **o** el caso todavía está en un stage pre-inversión real
-   (`Ideation`/`On Hold`). La segunda condición existe porque un caso recién
-   levantado en Ideation, de baja prioridad, todavía no tuvo tiempo de
-   "fallar" en value realization -- no hay timeline ni costo real corriendo
-   todavía para que las señales de `value_realization_tools` disparen --
-   pero es exactamente el tipo de caso que no vale la pena seguir
-   madurando: baja prioridad y sin ninguna inversión real hundida todavía.
-3. **Reduce Investment** — no está duplicado, `value_status` en (`at_risk`,
-   `off_track`) pero `priority_score` no es bajo: vale la pena mantenerlo,
-   pero no al ritmo de inversión actual hasta resolver el problema de valor.
-4. **Scale** — no está duplicado, `priority_score` alto
-   (`>= _HIGH_PRIORITY_THRESHOLD`) y `value_status` = `on_track`: candidato
-   real a más inversión/rollout.
-5. **Continue/Monitor** — todo lo que no cae en ninguna de las anteriores.
-"""
-
 from __future__ import annotations
 
 import pandas as pd
@@ -45,6 +10,9 @@ from portfolio_intel.tools.prioritization_tools import compute_priority_scores
 from portfolio_intel.tools.value_realization_tools import compute_value_realization_status
 from portfolio_intel.tools.wrappers import safe_tool
 
+# Precedencia: Consolidate (duplicado) > Discontinue (baja prioridad + value
+# at-risk o stage pre-inversión) > Reduce Investment (value at-risk) >
+# Scale (alta prioridad + on_track) > Continue/Monitor (default).
 _HIGH_PRIORITY_THRESHOLD = 65.0
 _LOW_PRIORITY_THRESHOLD = 35.0
 
@@ -53,15 +21,6 @@ _PRE_INVESTMENT_STAGES = {"Ideation", "On Hold"}
 
 
 def generate_portfolio_recommendations(df: pd.DataFrame) -> list[dict]:
-    """Una recomendación por caso de uso, con la evidencia que la respalda.
-
-    Corre el pipeline completo (priorización + value realization +
-    duplicación) internamente -- no depende de que el caller ya haya llamado
-    a las otras tools. Cada dict devuelto trae `action`, `reason` (texto ya
-    armado con los valores reales, no una plantilla vacía) y `evidence` (los
-    números crudos, para que el reporte -- Task 11 -- o el agente los citen
-    literal).
-    """
     scored = compute_priority_scores(df)
     scored = compute_value_realization_status(scored)
     duplicated_ids = duplicated_use_case_ids(df)
@@ -156,15 +115,6 @@ def _render_recommendations(recs: list[dict], action_filter: str | None = None) 
 
 
 def build_recommendation_tools(df: pd.DataFrame) -> list:
-    """Arma la lista de tools LangChain del agente de recomendación, atadas a `df`.
-
-    Este agente es el único que compone las tres tools anteriores -- su
-    trabajo, per `agents/portfolio_recommendation.py`, es puramente narrar lo
-    que esta tool ya calculó y decidió, no volver a evaluarlo.
-
-    Import de `langchain_core.tools.tool` diferido a acá adentro -- ver la
-    misma nota en `prioritization_tools.build_prioritization_tools`.
-    """
     from langchain_core.tools import tool
 
     recommendations = generate_portfolio_recommendations(df)

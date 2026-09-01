@@ -1,11 +1,3 @@
-"""Agente de dominio: reuso y duplicación del AI portfolio.
-
-ReAct agent sobre `tools/duplication_tools.py`. Encuentra casos de uso con
-overlap real de negocio (mismo dominio + texto de `business challenge`/
-`target state` similar) para que leadership pueda consolidar en vez de
-financiar dos veces lo mismo.
-"""
-
 from __future__ import annotations
 
 import pandas as pd
@@ -27,7 +19,6 @@ _SYSTEM_PROMPT = (
 
 
 def build_reuse_duplication_agent(df: pd.DataFrame):
-    """Compila el agente ReAct de reuso/duplicación, con sus tools atadas a `df`."""
     tools = build_duplication_tools(df)
     return create_agent(
         model=get_chat_model("worker"),

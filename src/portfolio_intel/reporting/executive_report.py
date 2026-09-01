@@ -1,15 +1,3 @@
-"""Reporte ejecutivo en Markdown: el deliverable de "executive recommendation output".
-
-`render_executive_report(df)` corre el pipeline de Task 5-8 **directo**, no a
-través del grafo de agentes -- no depende de ningún LLM ni de conexión a
-Databricks, así que es 100% verificable en esta máquina de desarrollo (ver
-`prompts/constraints_environment.md`). Cada línea del reporte viene de una
-columna real del dataset o de un cálculo determinista de `tools/`; no hay
-texto generado por un modelo acá. Esto es a propósito, no una limitación: es
-la mitad del reporte que no depende de tener acceso a Databricks para
-producir algo real y citable.
-"""
-
 from __future__ import annotations
 
 import pandas as pd
@@ -96,13 +84,6 @@ def _render_recommendations(recommendations: list[dict]) -> str:
 
 
 def render_executive_report(df: pd.DataFrame) -> str:
-    """Arma el reporte ejecutivo completo en Markdown, en base a `df`.
-
-    `df` es el snapshot del portfolio (ver `data.store.load_portfolio_data`).
-    No usa el grafo de agentes ni ningún LLM -- corre el pipeline
-    determinista de `tools/` directo, así que es reproducible byte a byte
-    para el mismo `df`.
-    """
     scored = compute_priority_scores(df)
     scored = compute_value_realization_status(scored)
     recommendations = generate_portfolio_recommendations(df)

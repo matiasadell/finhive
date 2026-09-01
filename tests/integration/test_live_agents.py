@@ -1,16 +1,4 @@
-"""Smoke tests end-to-end contra el grafo real, con LLM real vía Databricks.
-
-Marcados `live`: no corren en esta máquina de desarrollo (no hay conexión a
-Databricks, ver `prompts/constraints_environment.md`) -- correr a mano en la
-compu de trabajo, con `.env` completo y `databricks auth login` hecho:
-
-    pytest tests/integration/test_live_agents.py -v -s -m live
-
-Sin el flag `-m live`, `pyproject.toml` los deselecciona por default (ver
-`[tool.pytest.ini_options]`) -- así `pytest` sin argumentos nunca falla acá
-por falta de conexión, en vez de fallar silenciosamente sin explicar por qué.
-"""
-
+# Correr a mano en la compu de trabajo: pytest tests/integration/test_live_agents.py -v -s -m live
 from __future__ import annotations
 
 import pytest

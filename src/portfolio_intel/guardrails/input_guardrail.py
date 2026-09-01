@@ -1,15 +1,3 @@
-"""Guardrail de entrada: modera el tópico antes de invocar al supervisor raíz.
-
-Primer nodo del grafo (no hay `memory_recall` antes, a diferencia de
-finhive -- este proyecto no tiene memoria persistente, ver
-`prompts/non_goals.md`, así que no hace falta el orden especial que
-documentó finhive en su propio ADR de memoria). Usa el modelo "supervisor"
-(no "worker") por el mismo motivo que finhive: con el modelo barato, la
-frontera entre "pregunta legítima de portfolio" y "fuera de scope" no era
-determinista de una corrida a otra -- acá el costo de un falso rechazo
-(bloquear una pregunta legítima de priorización/portfolio) es alto.
-"""
-
 from __future__ import annotations
 
 from typing import Literal, TypedDict
@@ -52,7 +40,6 @@ class _TopicCheck(TypedDict):
 
 
 def input_guardrail_node(state: PortfolioState) -> Command[Literal["supervisor", "__end__"]]:
-    """Clasifica el pedido del usuario; bloquea si no aplica al portfolio de IA."""
     messages = state["messages"]
     last_user_message = str(messages[-1].content)
 

@@ -1,15 +1,3 @@
-"""Checks del golden set -- deterministas, sin LLM.
-
-Decisión central del proyecto (ver PLAN.md, "Key decisions"): priorización,
-duplicados y value_status los calculan las tools de `tools/`, no el LLM --
-así que esta evaluación puede correr y significar algo real en esta máquina
-de desarrollo, sin conexión a Databricks (ver
-`prompts/constraints_environment.md`). No hay ningún LLM-judge acá; eso
-queda para cuando se corra el sistema completo (agentes + guardrails) en la
-compu de trabajo -- lo que se mide acá es si el *núcleo determinista* del
-sistema (lo que de verdad respalda cada recomendación) está bien calibrado.
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -24,8 +12,6 @@ from portfolio_intel.tools.value_realization_tools import compute_value_realizat
 
 @dataclass
 class EvalContext:
-    """Pipeline completo corrido una única vez, reusado por todos los checks."""
-
     scored_df: pd.DataFrame
     duplicate_pairs: list[dict]
     recommendations: dict[str, dict]  # use_case_id -> recommendation dict
@@ -85,12 +71,6 @@ _CHECKS = {
 
 
 def run_golden_set(golden_set: list[dict], df: pd.DataFrame) -> list[dict]:
-    """Corre todos los checks del golden set contra `df`; un resultado por ítem.
-
-    Cada resultado: `{id, check, passed, detail}`. No lanza excepción si un
-    check individual falla -- eso es información (el pass_rate lo refleja),
-    no un error del harness.
-    """
     ctx = EvalContext.build(df)
     results = []
     for item in golden_set:

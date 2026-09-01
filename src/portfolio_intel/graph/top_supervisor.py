@@ -1,19 +1,3 @@
-"""Top-level supervisor: compone los 4 agentes de dominio de Portfolio Intel.
-
-Mismo patrón de fondo que finhive (`docs/architecture/adr/finhive-legacy/`,
-ADR 0005/0006), con una diferencia deliberada documentada en
-`docs/architecture/adr/0001-un-nivel-menos-de-jerarquia.md`: acá el
-supervisor raíz rutea directo a un agente ReAct por dominio (sin un
-sub-supervisor propio por equipo en el medio) -- un nivel menos de
-jerarquía que finhive, elegido por el presupuesto de tiempo del hackathon
-(ver `prompts/constraints_tech_stack.md`).
-
-Los 4 dominios: `prioritization`, `reuse_duplication`, `value_realization`,
-`portfolio_recommendation`. Sumar un dominio nuevo es: (1) construir su
-agente igual que `agents.prioritization`, (2) sumarlo a `_TEAM_BUILDERS` y
-`_TEAM_DESCRIPTIONS` acá abajo.
-"""
-
 from __future__ import annotations
 
 from typing import Literal, TypedDict
@@ -67,14 +51,8 @@ def _build_team_agents(df: pd.DataFrame) -> dict:
 
 
 class _Router(TypedDict):
-    """Próximo agente a invocar. FINISH si ya no hace falta ninguno.
-
-    `next` es `str`, no `Literal[*options]` -- mismo bug conocido de
-    `with_structured_output` + `Literal` construido en runtime que ya
-    documentó finhive (ver ADR 0005 archivada); se valida `next` contra
-    `options` en código.
-    """
-
+    # str, no Literal[*options]: with_structured_output + Literal armado en
+    # runtime rompe (bug conocido). Se valida `next` contra `options` en código.
     next: str
 
 
@@ -82,7 +60,6 @@ _MAX_ITERATIONS = 3
 
 
 def _make_supervisor_node(members: list[str]):
-    """Nodo supervisor: decide, vía structured output, a qué agente rutear."""
     options = ["FINISH", *members]
     team_lines = "\n".join(f"- {m}: {_TEAM_DESCRIPTIONS.get(m, '')}" for m in members)
     system_prompt = (
@@ -120,13 +97,6 @@ def _make_supervisor_node(members: list[str]):
 
 
 def _make_team_node(team: str, agent):
-    """Nodo que invoca un agente de dominio y vuelve al supervisor raíz.
-
-    A diferencia de finhive, `agent` acá es directamente el ReAct agent del
-    dominio (sin un sub-supervisor propio en el medio) -- ver el docstring
-    del módulo.
-    """
-
     def team_node(state: PortfolioState) -> Command[Literal["supervisor"]]:
         response = agent.invoke({"messages": state["messages"]})
         return Command(
@@ -142,20 +112,6 @@ def _make_team_node(team: str, agent):
 
 
 def build_top_supervisor(df: pd.DataFrame | None = None):
-    """Compila el grafo jerárquico completo de Portfolio Intel.
-
-    `df` es el snapshot del portfolio para esta invocación -- si no se pasa,
-    se carga vía `data.store.load_portfolio_data()` (backend local o
-    Databricks según `PORTFOLIO_INTEL_DATA_BACKEND`, ver
-    `prompts/constraints_data.md`). Pasarlo explícito es lo que usan los
-    tests estructurales (Task 14) para fijar un dataset conocido sin
-    depender del backend real.
-
-    Flujo: `START -> input_guardrail -> supervisor -> (agentes) -> supervisor
-    -> ... -> output_guardrail -> END`. Sin nodos de memoria (a diferencia de
-    finhive) -- no hay memoria persistente en este proyecto, ver
-    `prompts/non_goals.md`.
-    """
     df = df if df is not None else load_portfolio_data().get_use_cases()
     team_agents = _build_team_agents(df)
     members = list(team_agents.keys())

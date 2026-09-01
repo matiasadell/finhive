@@ -1,22 +1,6 @@
-"""Crea el schema y las 2 tablas Delta de Portfolio Intel en Unity Catalog (idempotente).
-
-Sin esto, `DatabricksDeltaStore` (`data/store.py`, ver ADR 0003) no tiene
-nada que leer -- este es el "próximo paso real" que quedó pendiente en ADR
-0007 para poder desplegar el agente de verdad contra Databricks.
-
-No se puede correr desde esta máquina de desarrollo (sin conexión a
-Databricks, ver `prompts/constraints_environment.md`) -- escrito para
-correr en la compu de trabajo o desde un notebook de Databricks, igual que
-`deploy_agent.py`.
-
-Carga los CSVs sintéticos de `data/sample_docs/` tal cual (mismo esquema
-exacto que espera un CSV real, ver `data/schema.py`) -- si en algún momento
-se reemplazan por datos reales de la empresa con el mismo nombre de archivo
-y esquema, este script no necesita ningún cambio.
-
-Uso (desde la raíz del repo, en un notebook/entorno con conexión real):
-    python infra/databricks/setup_catalog.py
-"""
+# Crea el schema y las 2 tablas Delta de Portfolio Intel en Unity Catalog
+# (idempotente) y carga los CSVs sintéticos. Correr en la compu de trabajo:
+# python infra/databricks/setup_catalog.py
 
 from __future__ import annotations
 
@@ -39,10 +23,7 @@ from portfolio_intel.data.schema import RUAI_USE_CASE_COLUMNS, USE_CASE_DETAIL_C
 
 _SAMPLE_DOCS_DIR = Path(__file__).resolve().parents[2] / "data" / "sample_docs"
 
-# Columnas que son numéricas/fecha en el esquema real -- todo lo que no está
-# acá se crea como STRING. Ver `data/schema.py` para el esquema completo;
-# esta lista es deliberadamente chica (solo las columnas que
-# `tools/*.py` de verdad usa como número/fecha).
+# Todo lo que no está acá se crea como STRING.
 _NUMERIC_COLUMNS = {
     "count",
     "max impact",
