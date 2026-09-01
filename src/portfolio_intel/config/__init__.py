@@ -1,1 +1,1 @@
-"""Carga de configuración y credenciales (env vars, Databricks secrets)."""
+"""Carga de configuración: backend de datos, modelo LLM, Unity Catalog."""

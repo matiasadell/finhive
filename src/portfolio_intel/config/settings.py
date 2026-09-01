@@ -1,9 +1,9 @@
-"""Configuración central: endpoints de modelo, Unity Catalog, y factory de LLM.
+"""Configuración central: modelo LLM, backend de datos, Unity Catalog.
 
-Todos los dominios (macro, equity, portfolio_risk, news_sentiment, crypto_alt)
-importan `get_chat_model` desde acá en vez de instanciar `ChatDatabricks`
-directamente, para que el tiering de modelos (supervisor vs worker) sea una
-única decisión centralizada.
+Todo el resto del paquete importa `get_chat_model` y `get_data_backend` desde
+acá en vez de leer env vars o instanciar `ChatDatabricks` directamente, para
+que el tiering de modelos y la elección de backend de datos sean una única
+decisión centralizada -- mismo criterio que `finhive.config.settings`.
 """
 
 from __future__ import annotations
@@ -15,101 +15,34 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# --- Unity Catalog ---
+# --- Unity Catalog (solo aplica con PORTFOLIO_INTEL_DATA_BACKEND=databricks) ---
 UC_CATALOG = "workspace"
-UC_SCHEMA = "finhive"
+UC_SCHEMA = "portfolio_intel"
 UC_FULL_SCHEMA = f"{UC_CATALOG}.{UC_SCHEMA}"
+UC_TABLE_USE_CASE_INVENTORY = "rua_use_case_inventory"
+UC_TABLE_USE_CASE_DETAIL = "ai_use_case_detail"
 
-# --- Foundation Model APIs nativos de Databricks (ver ADR 0003) ---
+# --- Foundation Model APIs nativos de Databricks (mismo par que finhive) ---
 SUPERVISOR_MODEL_ENDPOINT = "databricks-meta-llama-3-3-70b-instruct"
 WORKER_MODEL_ENDPOINT = "databricks-meta-llama-3-1-8b-instruct"
-EMBEDDING_ENDPOINT = "databricks-gte-large-en"
-
-# --- Vector Search: RAG sobre 10-K de SEC EDGAR (ver ADR 0017) ---
-VECTOR_SEARCH_ENDPOINT = "finhive_vs_endpoint"
-EQUITY_FILINGS_INDEX = f"{UC_FULL_SCHEMA}.equity_filing_chunks_index"
-
-# --- Unity AI Gateway: model services con routing real (ver ADR 0009) ---
-# A diferencia de los endpoints de arriba (servidos vía ChatDatabricks, path
-# clásico /serving-endpoints/), estos son "model services" de Unity Catalog,
-# consumidos vía el cliente OpenAI-compatible contra /ai-gateway/mlflow/v1.
-AI_GATEWAY_ROUTER_MODEL = "workspace.finhive.finhive_router"
-AI_GATEWAY_EMBEDDINGS_MODEL = "workspace.finhive.finhive_embeddings"
-
-# --- SQL warehouse serverless, provisionado desde el arranque del proyecto ---
-# Backend real de la memoria persistente (ver ADR 0012): tablas Delta en
-# `workspace.finhive`, leídas/escritas vía la Statement Execution API contra
-# este warehouse — no Lakebase Postgres (Public Preview, sin confirmar si
-# Free Edition lo habilita gratis). "Serverless Starter Warehouse", 2X-Small.
-SQL_WAREHOUSE_ID = "1a9a12e190f307b2"
 
 
-def get_fred_api_key() -> str:
-    """Lee FRED_API_KEY de env; falla explícito si no está configurada.
+def get_data_backend() -> Literal["local", "databricks"]:
+    """Lee `PORTFOLIO_INTEL_DATA_BACKEND` de env; default `"local"`.
 
-    `.lstrip("\\ufeff")` además del `.strip()`: el secret de Databricks
-    quedó cargado con un BOM de UTF-8 al principio (típico de un archivo
-    guardado como "UTF-8 con BOM" en Windows) -- `str.strip()` no lo
-    considera whitespace, así que sobrevivía y FRED rechazaba la key con
-    "not a 32 character alpha-numeric lower-case string" aunque el valor
-    real de 32 caracteres fuera correcto. Visto en vivo corriendo la demo.
+    Esta es la única decisión que separa correr en esta máquina de desarrollo
+    (sin acceso a Databricks, ver `prompts/constraints_environment.md`) de
+    correr en la compu de trabajo contra las tablas Delta reales -- todo lo
+    demás (tools, agentes, grafo) usa `data.store.load_portfolio_data()` sin
+    saber cuál de los dos está activo.
     """
-    key = os.getenv("FRED_API_KEY", "").strip().lstrip("\ufeff")
-    if not key:
+    value = os.getenv("PORTFOLIO_INTEL_DATA_BACKEND", "local").strip().lower()
+    if value not in ("local", "databricks"):
         raise RuntimeError(
-            "FRED_API_KEY no está seteada. Conseguila gratis en "
-            "https://fred.stlouisfed.org/docs/api/api_key.html y ponela en tu .env."
+            f"PORTFOLIO_INTEL_DATA_BACKEND='{value}' inválido -- tiene que ser "
+            "'local' o 'databricks'."
         )
-    return key
-
-
-def get_sec_edgar_user_agent() -> str:
-    """Lee SEC_EDGAR_USER_AGENT de env; falla explícito si no está configurada.
-
-    SEC EDGAR no requiere API key, pero exige un User-Agent descriptivo con
-    contacto real (su fair access policy bloquea requests sin esto).
-    """
-    ua = os.getenv("SEC_EDGAR_USER_AGENT", "").strip()
-    if not ua:
-        raise RuntimeError(
-            "SEC_EDGAR_USER_AGENT no está seteada. Poné algo como "
-            '"TuNombre tu-email@ejemplo.com" en tu .env — SEC EDGAR exige un '
-            "User-Agent descriptivo, aunque no pide API key."
-        )
-    return ua
-
-
-def get_alpha_vantage_api_key() -> str:
-    """Lee ALPHA_VANTAGE_API_KEY de env; falla explícito si no está configurada.
-
-    Ojo: el free tier de Alpha Vantage es chico (históricamente ~25
-    requests/día) — usar con cuidado en tests/desarrollo, no en loops.
-
-    `.lstrip("\ufeff")` igual que en `get_fred_api_key`: mismo riesgo de BOM
-    de UTF-8 si el secret se cargó desde un archivo de Windows.
-    """
-    key = os.getenv("ALPHA_VANTAGE_API_KEY", "").strip().lstrip("\ufeff")
-    if not key:
-        raise RuntimeError(
-            "ALPHA_VANTAGE_API_KEY no está seteada. Conseguila gratis en "
-            "https://www.alphavantage.co/support/#api-key y ponela en tu .env."
-        )
-    return key
-
-
-def get_tavily_api_key() -> str:
-    """Lee TAVILY_API_KEY de env; falla explícito si no está configurada.
-
-    `.lstrip("\ufeff")` igual que en `get_fred_api_key`: mismo riesgo de BOM
-    de UTF-8 si el secret se cargó desde un archivo de Windows.
-    """
-    key = os.getenv("TAVILY_API_KEY", "").strip().lstrip("\ufeff")
-    if not key:
-        raise RuntimeError(
-            "TAVILY_API_KEY no está seteada. Conseguila gratis en "
-            "https://tavily.com y ponela en tu .env."
-        )
-    return key
+    return value  # type: ignore[return-value]
 
 
 def get_databricks_host() -> str:
@@ -118,100 +51,53 @@ def get_databricks_host() -> str:
     if not host:
         raise RuntimeError(
             "DATABRICKS_HOST no está seteada. Es la URL de tu workspace "
-            "(ej. https://dbc-xxxxxxxx-xxxx.cloud.databricks.com), necesaria "
-            "para el cliente OpenAI-compatible contra AI Gateway."
+            "(ej. https://dbc-xxxxxxxx-xxxx.cloud.databricks.com)."
         )
     return host
 
 
 def get_databricks_token() -> str:
-    """Lee DATABRICKS_TOKEN de env; falla explícito si no está configurada.
-
-    A diferencia del resto del proyecto (que usa OAuth vía
-    DATABRICKS_CONFIG_PROFILE, sin token estático), el cliente OpenAI-
-    compatible de AI Gateway necesita un Bearer token fijo — un Personal
-    Access Token de Databricks. Generar uno con
-    `databricks tokens create --lifetime-seconds <segundos>` y guardarlo acá,
-    nunca en texto plano en ningún otro lado.
-    """
+    """Lee DATABRICKS_TOKEN de env; falla explícito si no está configurada."""
     token = os.getenv("DATABRICKS_TOKEN", "").strip()
     if not token:
         raise RuntimeError(
             "DATABRICKS_TOKEN no está seteada. Generá un Personal Access "
-            "Token con `databricks tokens create` y ponelo en tu .env — lo "
-            "necesita el cliente OpenAI-compatible contra AI Gateway."
+            "Token con `databricks tokens create` y ponelo en tu .env."
         )
     return token
 
 
-def get_router_chat_model(temperature: float = 0.1):
-    """Instancia un `ChatOpenAI` apuntando al model service con routing real.
+def get_sql_warehouse_id() -> str:
+    """Lee SQL_WAREHOUSE_ID de env; falla explícito si no está configurada.
 
-    A diferencia de `get_chat_model`, que pega directo a un único endpoint
-    de Databricks vía `ChatDatabricks`, esto pasa por el Unity AI Gateway
-    (`/ai-gateway/mlflow/v1`) y el tráfico se reparte según la config de
-    `AI_GATEWAY_ROUTER_MODEL` (hoy: 70% Llama 3.3 70B / 30% GPT OSS 120B —
-    ver ADR 0009). Usado por el top-level supervisor, el nodo más crítico
-    del sistema, para que se beneficie de resiliencia real a la degradación
-    de un único modelo.
+    Solo hace falta con `PORTFOLIO_INTEL_DATA_BACKEND=databricks` -- el
+    backend local (default, usado en esta máquina de desarrollo) nunca la
+    necesita.
     """
-    from langchain_openai import ChatOpenAI
-
-    return ChatOpenAI(
-        model=AI_GATEWAY_ROUTER_MODEL,
-        openai_api_key=get_databricks_token(),
-        openai_api_base=f"{get_databricks_host()}/ai-gateway/mlflow/v1",
-        temperature=temperature,
-    )
-
-
-def get_gateway_embeddings():
-    """Instancia un `OpenAIEmbeddings` apuntando al model service de embeddings.
-
-    Igual que `get_router_chat_model`, pasa por Unity AI Gateway en vez de
-    pegarle directo al serving endpoint — mismo gobierno (rate limits,
-    tracking) que el resto de los model services. Todavía no está en uso
-    activo (Vector Search de FinHive no tiene índice creado aún), pero deja
-    lista la conexión para cuando se implemente RAG.
-    """
-    from langchain_openai import OpenAIEmbeddings
-
-    return OpenAIEmbeddings(
-        model=AI_GATEWAY_EMBEDDINGS_MODEL,
-        openai_api_key=get_databricks_token(),
-        openai_api_base=f"{get_databricks_host()}/ai-gateway/mlflow/v1",
-        # Sin esto, OpenAIEmbeddings pre-tokeniza (con tiktoken o, si eso se
-        # desactiva, con transformers) asumiendo un modelo real de OpenAI, y
-        # manda arrays de token IDs en vez de texto plano -- AI Gateway lo
-        # rechaza con 400 BAD_REQUEST para un modelo que no es de OpenAI
-        # (acá, GTE Large de Databricks). check_embedding_ctx_length=False
-        # salta ese codepath entero y manda el string tal cual.
-        check_embedding_ctx_length=False,
-    )
-
-
-def get_databricks_workspace_email() -> str:
-    """Email del usuario autenticado en el workspace, vía `databricks.sdk.WorkspaceClient`.
-
-    Usado para armar el path del experimento de MLflow de evaluación
-    (`/Users/<email>/finhive-eval`, ver `finhive.evaluation.run_eval` y ADR
-    0013) — mismo auth ambiente (OAuth vía `DATABRICKS_CONFIG_PROFILE`) que
-    ya usa `register_uc_functions.py`, sin token estático nuevo.
-    """
-    from databricks.sdk import WorkspaceClient
-
-    return WorkspaceClient().current_user.me().user_name
+    warehouse_id = os.getenv("SQL_WAREHOUSE_ID", "").strip()
+    if not warehouse_id:
+        raise RuntimeError(
+            "SQL_WAREHOUSE_ID no está seteada -- necesaria para el backend "
+            "'databricks' del data store. No hace falta con el backend "
+            "'local' (default)."
+        )
+    return warehouse_id
 
 
 def get_chat_model(tier: Literal["supervisor", "worker"], temperature: float = 0.1):
     """Instancia un `ChatDatabricks` apuntando al endpoint correcto según el rol.
 
     Args:
-        tier: "supervisor" para supervisores de dominio y el top-level supervisor
-            (routing y síntesis, requieren más capacidad de razonamiento);
-            "worker" para agentes hoja que solo hacen tool calling/extracción.
-        temperature: temperatura de muestreo, baja por default para respuestas
-            consistentes en un dominio financiero.
+        tier: "supervisor" para el top-level supervisor (routing, requiere más
+            capacidad de razonamiento); "worker" para los agentes de dominio
+            (tool-calling sobre las tools deterministas de `tools/`).
+        temperature: temperatura de muestreo, baja por default para
+            recomendaciones consistentes.
+
+    Esta llamada solo funciona con conexión real a Databricks -- en esta
+    máquina de desarrollo (ver `prompts/constraints_environment.md`) va a
+    fallar al invocar el modelo, no al construir el cliente; eso es esperado,
+    no un bug a perseguir acá.
     """
     from databricks_langchain import ChatDatabricks
 

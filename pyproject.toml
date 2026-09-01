@@ -1,28 +1,22 @@
 [project]
-name = "finhive"
+name = "portfolio-intel"
 version = "0.1.0"
-description = "Sistema multiagente jerárquico de análisis financiero sobre LangGraph y Databricks."
+description = "Agente de inteligencia de portfolio de IA: prioriza, detecta duplicados/reuso, mide realización de valor y recomienda scale/reduce/consolidate/discontinue sobre el AI Use Case Inventory de la empresa, con LangGraph sobre Databricks."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
-authors = [{ name = "Matías Adell" }]
+authors = [{ name = "Facundo Mazzola" }]
 
 dependencies = [
     "langgraph>=0.3",
     "langgraph-supervisor>=0.0.9",
     "langchain>=0.3",
-    "langchain-community>=0.3",
-    "langchain-openai>=0.2",
     "databricks-langchain>=0.3",
     "databricks-sdk>=0.30",
-    "databricks-vectorsearch>=0.40",
     "mlflow[databricks]>=3.1.0",
-    "streamlit>=1.38",
     "python-dotenv>=1.0",
     "pandas>=2.2",
     "numpy>=1.26",
-    "yfinance>=0.2",
-    "requests>=2.32",
 ]
 
 [project.optional-dependencies]
@@ -37,7 +31,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/finhive"]
+packages = ["src/portfolio_intel"]
 
 [tool.ruff]
 line-length = 100
@@ -52,5 +46,6 @@ target-version = "py311"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = [
-    "integration: pega contra Databricks/APIs reales; correr a mano, no en CI",
+    "live: requiere una conexión real a Databricks (LLM + SQL warehouse) -- no",
+    "    corre en esta máquina de desarrollo, solo en la compu de trabajo.",
 ]
