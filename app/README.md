@@ -1,13 +1,9 @@
 # app/
 
-Demo desplegada como [Databricks App](https://docs.databricks.com/aws/en/dev-tools/databricks-apps/)
-(Streamlit), consumida directamente por `src/finhive` para invocar el grafo de agentes.
-
-Roadmap (fase de implementación, todavía no escrito):
-
-- `app.py` — UI de Streamlit: chat con el supervisor raíz, visualización de qué
-  sub-supervisor/worker respondió, trazas de MLflow embebidas.
-- `app.yaml` — manifiesto de despliegue de Databricks Apps (comando de arranque, env vars).
-- `requirements.txt` — dependencias mínimas del runtime de la app (subset de `pyproject.toml`).
-
-Se despliega con `databricks apps deploy` una vez que `src/finhive` tenga el grafo armado.
+Sin frontend en este pase, a propósito: el equipo del usuario construye la UI por su
+cuenta, directo contra el paquete Python `portfolio_intel` (ver
+`prompts/non_goals.md` y `prompts/constraints_tech_stack.md`) — no un servidor HTTP ni
+una app de Databricks Apps escrita acá. `build_top_supervisor()`
+(`portfolio_intel.graph`) y `render_executive_report()`
+(`portfolio_intel.reporting.executive_report`) son los dos puntos de entrada que un
+frontend externo integraría.

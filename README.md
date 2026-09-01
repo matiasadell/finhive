@@ -1,134 +1,151 @@
-# FinHive
+# Portfolio Intel
 
-Sistema multiagente **jerárquico** de análisis financiero: un supervisor raíz coordina
-cinco sub-supervisores especializados por dominio (macro, equity, portfolio/risk,
-news/sentiment, crypto), cada uno con sus propios workers — construido sobre LangGraph
-y desplegado sobre Databricks (Unity Catalog, Vector Search, Model Serving/AI Gateway).
+**AI Portfolio Intelligence Agent** — un sistema multiagente jerárquico que ayuda a
+leadership a tomar mejores decisiones de inversión en el portfolio de casos de uso de IA
+de la empresa: qué priorizar, qué es duplicado/reusable, qué no está realizando el valor
+prometido, y dónde escalar, consolidar, reducir o discontinuar inversión — construido
+sobre LangGraph, pensado para correr contra Databricks (Foundation Model APIs nativos +
+Unity Catalog).
 
-> ⚠️ **Este proyecto es una herramienta de research/análisis, no asesoramiento financiero
-> ni ejecución de trades reales.** Ver guardrails y disclaimers en `src/finhive/guardrails/`.
+> Este proyecto es una capa de inteligencia/decision-support que **complementa** el
+> proceso existente de AI Intake, aprobación y governance de la empresa — no lo
+> reemplaza, y no ejecuta ninguna decisión de inversión real.
 
-> 🚧 **Estado**: los 5 dominios, el supervisor jerárquico, guardrails de entrada/salida,
-> memoria persistente, evaluación formal (MLflow nativo) y el despliegue como Agent
-> de Databricks ya funcionan end-to-end contra Databricks real (ver checklist abajo).
-> Falta la demo Streamlit desplegada.
+## Por qué existe
+
+Corporate Functions Data Office ya tiene un proceso de intake/aprobación/governance de
+casos de uso de IA, con buen workflow management — pero sigue sin poder responder, solo
+con esos datos: qué priorizar, qué escalar, qué es duplicado, qué no está entregando
+valor, y dónde mover la inversión. Portfolio Intel es esa capa de inteligencia, construida
+sobre el AI Use Case Inventory real de la empresa.
+
+## Cómo se mapea a los 4 criterios de evaluación del challenge
+
+| Criterio | Dónde vive |
+|---|---|
+| **Prioritization quality** | `tools/prioritization_tools.py` — composite score explicable (impacto, eficiencia de inversión, confianza, stage, escalabilidad), pesos documentados. Verificado: `tests/unit/test_prioritization_tools.py`, golden set. |
+| **Reuse identification** | `tools/duplication_tools.py` — similitud textual real entre `business challenge`/`target state` + metadata compartida, sin embeddings. Encuentra los 4 clusters de duplicados del dataset, cero falsos positivos. |
+| **Value realization** | `tools/value_realization_tools.py` — `on_track`/`at_risk`/`off_track` por 3 señales reales (sobre-costo, timeline vencida, barrera documentada). |
+| **Recommendation explainability** | `tools/recommendation_tools.py` compone las tres anteriores con una tabla de reglas explícita (documentada con su rationale); `reporting/executive_report.py` renderiza todo en Markdown, cada línea trazable a una fila/columna real del dataset. |
+
+Ver [`docs/architecture/adr/`](docs/architecture/adr/) para las decisiones de arquitectura
+completas (ADRs 0001-0006), incluyendo en qué difiere deliberadamente de `finhive` (el
+proyecto hermano de este mismo repo, ver más abajo) y por qué.
 
 ## Arquitectura
 
 ```
-                         Top-Level Supervisor (Llama 3.3 70B nativo, vía AI Gateway)
-                         router de complejidad: trivial / single- / multi-domain
-                                          │
-        ┌───────────┬──────────────┬─────┴────────┬──────────────┬───────────┐
-        ▼           ▼              ▼               ▼              ▼
-     Macro      Equity Research  Portfolio &     News &        Crypto &
-   Supervisor    Supervisor      Risk Superv.   Sentiment Sup.  Alt Assets Sup.
+                    Top-Level Supervisor (routing, structured output)
+                                     │
+       ┌──────────────┬─────────────┼──────────────┬──────────────────┐
+       ▼              ▼             ▼               ▼
+ Prioritization  Reuse & Dup.  Value Realization  Portfolio
+    Agent          Agent          Agent          Recommendation Agent
+       │              │             │               │ (compone los 3 anteriores)
+       └──────────────┴─────────────┴───────────────┘
+              tools/ deterministas (nunca el LLM decide un número)
 ```
 
-Cada worker sigue el patrón ReAct; cada sub-supervisor compone sus workers como un
-sub-grafo de LangGraph; el supervisor raíz compone los cinco sub-grafos ("Hierarchical
-Agent Teams"). El detalle completo de decisiones de arquitectura está en
-[`docs/architecture/adr/`](docs/architecture/adr/) (ADRs 0001-0017), incluyendo un mapa
-explícito de qué concepto de arquitectura agéntica (ReAct, Reflexion, Self-RAG/CRAG,
-RAPTOR, Adaptive-RAG, Mixture-of-Agents, MCP, LLM Gateway, etc.) se aplica en qué parte
-del sistema — MCP, por ejemplo, se resuelve como Unity Catalog Functions gobernadas
-(ADR 0004), no como los Managed MCP servers de Databricks (que facturan por invocación).
-El supervisor raíz ya compone los 5 equipos de dominio de verdad (ADR 0005), con un
-límite duro de iteraciones como salvaguarda de cuota, descripciones explícitas por equipo
-para desambiguar preguntas de frontera (ADR 0006), y todas las tools envueltas en un
-wrapper defensivo que convierte errores de red/rate-limit en observaciones en vez de
-crashear el grafo (ADR 0007).
-
-Este proyecto nació de una investigación teórica propia sobre arquitecturas agénticas —
-ver [`docs/theory/main.pdf`](docs/theory/main.pdf) (timeline de 24 arquitecturas, 2020-2026)
-y [`docs/theory/Summary.pdf`](docs/theory/Summary.pdf) (resumen conceptual de RAG y agentes) —
-implementada acá sobre un caso de uso financiero real.
+Un supervisor raíz rutea cada pregunta a uno de 4 agentes ReAct de dominio (un nivel menos
+de jerarquía que `finhive`, ver ADR 0001); cada agente solo puede invocar sus propias
+tools deterministas y narrar el resultado — nunca calcular un score, un match de
+duplicado, o una recomendación por su cuenta (ver ADR 0002, la decisión de diseño central
+de este proyecto). Guardrails de entrada (scope) y salida (groundedness) corren como
+nodos del grafo, no como tools invocadas por el LLM.
 
 ## Stack
 
 | Capa | Tecnología |
 |---|---|
-| Orquestación de agentes | LangGraph (+ `langgraph-supervisor`) |
-| LLM | Foundation Model APIs nativos de Databricks (Llama 3.3 70B / Llama 3.1 8B), gratis en Free Edition, gobernados por AI Gateway |
-| Gateway / gobernanza | Databricks AI Gateway |
-| Vector search | Databricks Vector Search (Delta Sync, embeddings: GTE Large nativo) sobre el último 10-K de AAPL/MSFT — prueba de concepto de RAG narrativo, no cobertura general (ADR 0017) |
-| Almacenamiento / catálogo | Unity Catalog (tablas, volumes) |
-| Memoria persistente | Tablas Delta en Unity Catalog (`workspace.finhive`), vía el SQL warehouse serverless (no Lakebase — ver ADR 0012) |
-| Observabilidad / evaluación | MLflow Tracing + evaluación nativa de MLflow GenAI (`mlflow.genai.evaluate`) |
-| Demo | Streamlit sobre Databricks Apps (planeado, ver roadmap — todavía no implementado) |
-| Datos financieros | yfinance, SEC EDGAR, FRED, Alpha Vantage, CoinGecko, Tavily |
+| Orquestación de agentes | LangGraph (`langgraph` + `langgraph-supervisor`) |
+| LLM | Foundation Model APIs nativos de Databricks (Llama 3.3 70B / 3.1 8B) |
+| Datos | Unity Catalog (Delta) en producción; CSVs locales en desarrollo — ver ADR 0003 |
+| Evaluación | Golden set determinista (`data/eval/golden_set.json`), sin LLM-judge — ver ADR 0006 |
+| Datos financieros/portfolio | AI Use Case Inventory de la empresa (sintético en este pase, ver abajo) |
 
 ## Estructura del repo
 
 ```
-src/finhive/       paquete Python: agentes, tools, RAG, guardrails, memoria, evaluación
-notebooks/         notebooks de Databricks (Repos), orquestan sobre src/finhive
-app/                demo Streamlit, todavía sin implementar (ver app/README.md y roadmap)
-infra/databricks/  scripts de setup del workspace (catalog, vector search, secrets)
-docs/               teoría de base, ADRs de arquitectura, artículo técnico final
-tests/              integration (end-to-end contra los grafos reales, sin mocks)
-data/sample_docs/  corpus mínimo para smoke-tests locales (el corpus real vive en UC Volumes)
-data/eval/         dataset dorado de evaluación (data/eval/golden_set.json, ver ADR 0013)
+src/portfolio_intel/  paquete Python: agentes, tools, data, grafo, guardrails, reporting, evaluación
+data/sample_docs/     dataset sintético del AI portfolio (regenerado, no commiteado — ver su README)
+data/eval/             golden set de evaluación (data/eval/golden_set.json)
+notebooks/00_demo.py   demo de 4 escenarios end-to-end, corre local o como notebook de Databricks Repos
+tests/                 unit/ (núcleo determinista, sin LLM) + integration/ (estructural + live)
+docs/architecture/adr/ decisiones de arquitectura de este proyecto (ADRs 0001-0006)
+outputs/                artefactos generados al correr notebooks/00_demo.py (reporte ejecutivo, transcripts)
 ```
 
 ## Quickstart (desarrollo local)
 
+Esta máquina de desarrollo no tiene conexión a Databricks (ver
+`prompts/constraints_environment.md`) — el flujo de abajo corre todo lo que **no**
+necesita un LLM real; el resto queda listo para correr en la compu de trabajo.
+
 ```bash
-uv sync                        # instala dependencias (ver pyproject.toml)
-cp .env.example .env           # completar con tus propias keys (nunca commitear .env)
-databricks auth login --host <tu-workspace-url>   # OAuth, no pega ningún token en texto
+# el python del PATH puede ser demasiado nuevo para tener wheels de mlflow/matplotlib
+# (ver CLAUDE.md) -- si falla, usar un intérprete Python 3.11 aparte.
+pip install -e ".[dev]"
+
+# generar el dataset sintético (no está commiteado, se regenera siempre igual)
+python -m portfolio_intel.data.synthetic
+
+# núcleo determinista: tests + golden set, sin LLM
+pytest tests/unit tests/integration -v      # 38 passed, 3 deselected (los `live`)
+python -m portfolio_intel.evaluation.run_eval   # 11/11 checks (100%)
+
+# demo completa: reporte ejecutivo (determinista) + 4 escenarios de agentes
+# (los agentes fallan limpio acá, sin Databricks -- ver la salida)
+python notebooks/00_demo.py
 ```
 
-Ver `.env.example` para la lista completa de cuentas/API keys necesarias y dónde
-obtenerlas (todas gratuitas o free-tier).
+## Para correr contra Databricks real (compu de trabajo)
 
-## Probarlo dentro de Databricks
+```bash
+cp .env.example .env
+databricks auth login --host <tu-workspace-url>
+```
 
-Este repo está conectado como Databricks Repo en el workspace
-(`/Workspace/Users/<tu-usuario>/finhive`). Para correr el sistema completo ahí en vez de
-localmente: abrí [`notebooks/00_demo.py`](notebooks/00_demo.py), conectalo a cómputo
-serverless, y `Run All` — instala el paquete en modo editable, carga las credenciales
-desde Databricks Secrets (`dbutils.secrets`, scope `finhive`) y corre una pregunta real
-por cada uno de los 5 dominios más una pregunta cross-domain.
+Completar `.env`: `DATABRICKS_HOST`, `DATABRICKS_TOKEN`, `SQL_WAREHOUSE_ID` si se usa el
+backend `databricks` (`PORTFOLIO_INTEL_DATA_BACKEND=databricks`). Con eso:
 
-## Roadmap
+```bash
+pytest tests/ -v -m live          # los 3 smoke tests contra el grafo real
+python notebooks/00_demo.py       # los 4 escenarios ahora sí invocan el LLM real
+```
 
-- [x] Diseño de arquitectura y ADR
-- [x] Estructura de repo
-- [x] Infraestructura mínima de Databricks (schema, volume, vector search endpoint, secret scope)
-- [x] LLM: Foundation Model APIs nativos de Databricks verificados en vivo (Llama 3.3 70B / 3.1 8B), sin key externa
-- [x] Sub-supervisor de Macro (3 workers ReAct + supervisor, tools sobre FRED registradas en Unity Catalog)
-- [x] Top-level supervisor + composición jerárquica (**5/5 dominios**, verificado end-to-end)
-- [x] Sub-supervisor de Equity Research (fundamentals/técnico/filings, tools sobre yfinance + SEC EDGAR)
-- [x] Sub-supervisor de Portfolio & Risk (volatilidad/VaR/correlación/Sharpe, cómputo propio con numpy/pandas)
-- [x] Sub-supervisor de News & Sentiment (noticias/sentimiento vía Alpha Vantage, calendario de earnings, fallback web vía Tavily)
-- [x] Sub-supervisor de Crypto & Alt (precio/tendencias/ranking vía CoinGecko, sin key)
-- [x] Tools defensivas: errores de red/rate-limit no crashean el grafo (ADR 0007)
-- [x] Rate limits explícitos de AI Gateway + model routing real (70/30 entre dos modelos), **integrado como modelo del top-level supervisor** (ADR 0008, 0009, 0010)
-- [x] Model service de embeddings gobernado por Unity AI Gateway (`finhive_embeddings`, GTE Large)
-- [x] Guardrails de entrada (moderación de tópico/scope) y salida (groundedness check), como nodos propios del grafo (ADR 0011)
-- [x] Memoria persistente: sesión (thread_id, entre invocaciones) + hechos de largo plazo estilo MemGPT, sobre tablas Delta en Unity Catalog (ADR 0012)
-- [x] Evaluación formal: dataset dorado de 15 preguntas, versionado en `data/eval/golden_set.json` y sincronizado a un `EvaluationDataset` de MLflow en Unity Catalog (`workspace.finhive.golden_set`, ADR 0016), corrido vía `mlflow.genai.evaluate()` — **routing accuracy 0.933, groundedness 1.0, latencia media 32.94s/pregunta** — resumen logueado en un Experiment de MLflow real en Databricks (ADR 0013 diseño original con LangSmith, con 5 bugs reales encontrados y corregidos en el proceso; ADR 0014 migró el harness a evaluación nativa de MLflow, con 1 bug real más encontrado en el proceso)
-- [x] Trazas agrupadas por conversación (Observability > Sessions) y monitoreo continuo del Agent en producción con un scorer de guidelines sobre una muestra del tráfico real (ADR 0016)
-- [x] Desplegado como Agent en Databricks (Mosaic AI Agent Framework): `mlflow.pyfunc.ResponsesAgent` sobre el grafo jerárquico completo, registrado en Unity Catalog y servido en un endpoint real (`agents_workspace-finhive-finhive_agent`) — privado (solo el creador tiene `CAN_QUERY`), con `scale_to_zero` para minimizar cómputo activo (ADR 0015, con 7 bugs reales encontrados y corregidos en el proceso)
-- [x] RAG real sobre 10-K de SEC EDGAR: ingesta del último 10-K de AAPL/MSFT, chunking e índice Delta Sync de Vector Search, nueva tool `search_filing_content` en el sub-supervisor de Equity Research para preguntas sobre contenido narrativo (riesgos, estrategia, MD&A) — alcance chico a propósito, prueba de concepto (ADR 0017)
-- [ ] Demo Streamlit desplegada
-- [x] Artículo técnico end-to-end (`docs/latex/finhive_article.tex`) + presentación LinkedIn (`docs/latex/finhive_presentation.tex`)
+Nota: las tablas Delta (`workspace.portfolio_intel.*`) todavía no están provisionadas en
+ningún workspace real — `DatabricksDeltaStore` (`data/store.py`) está escrito y listo, pero
+el DDL/carga inicial es trabajo pendiente (ver ADR 0003), fuera de alcance de este pase
+según lo acordado con el usuario (`prompts/non_goals.md`).
 
-## Documentación
+## Dataset
 
-- [`docs/latex/finhive_article.tex`](docs/latex/finhive_article.tex) — artículo técnico completo
-  (arquitectura, mapa teoría→implementación, hallazgos y bugs reales de las 10 ADRs, resultados,
-  trabajo futuro). Compila a `finhive_article.pdf` con `pdflatex` (dos pasadas).
-- [`docs/latex/finhive_presentation.tex`](docs/latex/finhive_presentation.tex) — presentación
-  Beamer (12 slides) pensada para publicar en LinkedIn, mismo contenido condensado a formato
-  visual. Compila a `finhive_presentation.pdf`.
+No hay CSVs reales de la empresa todavía. `data/sample_docs/` tiene un dataset sintético
+de 30 casos de uso de IA de una aseguradora ficticia, con el esquema exacto de columnas
+que la empresa real usa (`RUAI Use Case` + `AI Use Case Detail`, ver
+`src/portfolio_intel/data/schema.py`), construido a propósito (no relleno genérico, ver
+ADR 0005) para que cada escenario — duplicados, casos en riesgo, candidatos a escalar o
+discontinuar — sea real y verificable, no solo plausible. Ver
+[`data/sample_docs/README.md`](data/sample_docs/README.md) para el detalle completo.
+
+Reemplazar por los CSVs reales de la empresa es directo: mismo nombre de archivo, mismo
+esquema de columnas — `data/store.py` no distingue entre datos sintéticos y reales.
+
+## Sobre `finhive`
+
+Este proyecto vive en el mismo repositorio que
+[`finhive`](https://github.com/matiasadell/finhive) (branch `main`), un sistema
+multiagente jerárquico de research financiero construido antes, sobre el mismo stack
+(LangGraph + Databricks). Portfolio Intel reusa sus patrones arquitectónicos probados
+(supervisor jerárquico, ReAct workers, guardrails como nodos de grafo, tools defensivas,
+convención de ADRs) pero es un proyecto de dominio completamente distinto — ningún código
+de negocio se comparte entre ambos, y `main`/`finhive` no se tocaron para construir esto
+(todo el trabajo vive en la branch `hackathon-ai-portfolio-intelligence`).
 
 ## Autor
 
-Matías Adell — [main.pdf](docs/theory/main.pdf) y [Summary.pdf](docs/theory/Summary.pdf)
-son investigación propia sobre arquitecturas agénticas que fundamentan las decisiones de
-diseño de este proyecto.
+Facundo Mazzola — hackathon "AI Portfolio Intelligence Agent" (Corporate Functions Data
+Office), sobre la base arquitectónica de `finhive` (Matías Adell).
 
 ## Licencia
 

@@ -39,6 +39,11 @@ mlartifacts/
 .databricks/
 .databricks-login.json
 
+# Artefactos generados corriendo código (notebooks/00_demo.py, etc.) --
+# reproducibles corriendo el script de nuevo, no se commitean.
+outputs/*
+!outputs/.gitkeep
+
 # Data — large corpora live in Unity Catalog Volumes, not in git
 data/**
 !data/sample_docs/

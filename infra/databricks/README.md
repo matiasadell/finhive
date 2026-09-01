@@ -1,68 +1,13 @@
 # infra/databricks/
 
-Scripts de infraestructura (Python + `databricks-sdk`, no Terraform ni Asset Bundles —
-el flujo de dev elegido es Databricks Repos + notebooks nativos) para dejar el workspace
-listo antes de correr el pipeline de agentes.
+Sin scripts de setup en este pase: no se provisionó ningún workspace real ni se tocó
+infraestructura de Databricks desde esta máquina de desarrollo (ver
+`prompts/non_goals.md` — explícitamente fuera de alcance de este pase, y sin conexión a
+Databricks para probarlo igual, ver `prompts/constraints_environment.md`).
 
-Roadmap (fase de implementación, todavía no escrito):
-
-- `setup_catalog.py` — crea/valida el schema `workspace.finhive` y el volume
-  `workspace.finhive.docs`, idempotente (ver "Estado actual" abajo, ya provisionado).
-- `setup_secrets.py` — carga secrets al scope `finhive`; nunca imprime valores, lee
-  desde un archivo local no trackeado o pide input interactivo vía la CLI.
-
-**`setup_vector_search.py`** (ya escrito, no es roadmap) — ingesta el último 10-K de
-AAPL/MSFT (vía `finhive.rag.ingest`) a `workspace.finhive.equity_filing_chunks` y crea/
-sincroniza el índice Delta Sync `equity_filing_chunks_index` sobre `finhive_vs_endpoint`.
-Alcance chico a propósito, prueba de concepto de RAG narrativo — ver ADR 0017. Uso:
-`uv run python infra/databricks/setup_vector_search.py`.
-
-**`register_uc_functions.py`** (ya escrito, no es roadmap) — registra funciones Python
-como Unity Catalog Functions, genérico y reutilizable entre dominios. Es el reemplazo de
-los Managed MCP servers de Databricks (que facturan cómputo serverless por invocación) —
-ver ADR 0004. Uso: `uv run python infra/databricks/register_uc_functions.py`.
-
-**`setup_memory_tables.py`** (ya escrito, no es roadmap) — crea las 2 tablas Delta de
-memoria persistente (idempotente, `CREATE TABLE IF NOT EXISTS`). Es el reemplazo de
-Lakebase Postgres (Public Preview, entitlement de Free Edition sin confirmar) — ver ADR
-0012. Uso: `uv run python infra/databricks/setup_memory_tables.py`.
-
-El LLM **no requiere registrar un External Model**: se usan los Foundation Model APIs
-nativos de Databricks (`system.ai.*`), ya provisionados en el workspace y gratis en Free
-Edition — ver ADR 0003. Se evaluó Groq como External Model tipo `custom` (ADR 0002) pero
-se descartó a favor de los modelos nativos: cero setup adicional, cero dependencia de key
-externa, mismo nivel de gobernanza vía AI Gateway.
-
-## Estado actual (infraestructura ya provisionada y verificada en vivo)
-
-| Recurso | Nombre | Notas |
-|---|---|---|
-| Catalog | `workspace` (existente) | Free Edition no permite crear catalogs nuevos vía CLI sin un storage root pre-provisionado por la UI (Default Storage); se usa el catalog `workspace` ya existente en vez de uno dedicado |
-| Schema | `workspace.finhive` | Namespace del proyecto dentro del catalog |
-| Volume | `workspace.finhive.docs` | Managed volume para el corpus crudo del RAG |
-| Vector Search endpoint | `finhive_vs_endpoint` | Tipo `STANDARD`, estado `ONLINE` |
-| Vector Search index | `workspace.finhive.equity_filing_chunks_index` | Delta Sync, `pipeline_type=TRIGGERED`, embeddings vía `databricks-gte-large-en`. Último 10-K de AAPL/MSFT solamente (ADR 0017) |
-| Tabla Delta (chunks de filings) | `workspace.finhive.equity_filing_chunks` | Fuente del índice de Vector Search, `delta.enableChangeDataFeed = true` (requisito de Delta Sync) |
-| Secret scope | `finhive` | `fred_api_key`, `alpha_vantage_api_key`, `tavily_api_key`, `databricks_token` cargados — usados por `notebooks/00_demo.py` vía `dbutils.secrets` (el notebook usa el token de su propia ejecución para AI Gateway, no `databricks_token`) |
-| LLM — supervisores | `databricks-meta-llama-3-3-70b-instruct` (`system.ai.llama_v3_3_70b_instruct`) | `READY`. AI Gateway: rate limit 30 calls/usuario/min (ADR 0008) |
-| LLM — workers | `databricks-meta-llama-3-1-8b-instruct` (`system.ai.meta_llama_v3_1_8b_instruct`) | `READY`. AI Gateway: rate limit 60 calls/usuario/min (ADR 0008) |
-| Embeddings — Vector Search | `databricks-gte-large-en` (`system.ai.gte_large_en_v1_5`) | `READY`. AI Gateway: rate limit 60 calls/usuario/min (ADR 0008) |
-| UC Functions (Macro) | `search_fred_series`, `get_fred_series_latest`, `get_fred_series_history` | Registradas y gobernadas en UC; ejecución real en proceso propio, no vía `UCFunctionToolkit` (ver ADR 0004) |
-| UC Functions (Equity) | `get_stock_quote`, `get_stock_fundamentals`, `get_stock_price_history`, `calculate_sma`, `search_sec_filings`, `get_sec_company_facts`, `search_filing_content` | Ídem, registradas en `workspace.finhive` |
-| UC Functions (Portfolio & Risk) | `calculate_portfolio_volatility`, `calculate_portfolio_var`, `calculate_correlation_matrix`, `calculate_sharpe_ratio`, `add_numbers`, `multiply_numbers`, `divide_numbers` | Ídem — cómputo propio con numpy/pandas, no solo passthrough a una API |
-| UC Functions (News & Sentiment) | `get_stock_news_sentiment`, `get_market_news_sentiment`, `get_earnings_calendar`, `web_search_news` | Ídem — Alpha Vantage (sentiment/calendario) + Tavily (fallback web estilo CRAG) |
-| UC Functions (Crypto & Alt) | `search_crypto_id`, `get_crypto_price`, `get_crypto_price_history`, `get_trending_crypto`, `get_top_crypto_by_market_cap` | Ídem — CoinGecko, API pública sin key |
-| Model service (routing) | `model-services/workspace.finhive.finhive_router` | Unity AI Gateway *Beta*: routing real 70% `llama_v3_3_70b_instruct` / 30% `gpt-oss-120b`. **Integrado**: modelo del top-level supervisor vía `get_router_chat_model()` (`langchain_openai.ChatOpenAI` contra `/ai-gateway/mlflow/v1`, ver ADR 0010) |
-| Model service (embeddings) | `model-services/workspace.finhive.finhive_embeddings` | Unity AI Gateway *Beta*: 100% `gte_large_en_v1_5`. Disponible vía `get_gateway_embeddings()`, sin uso activo todavía (RAG/Vector Search pendiente) |
-| SQL warehouse | `Serverless Starter Warehouse` (`1a9a12e190f307b2`) | `PRO`, 2X-Small, serverless. Backend real de la memoria persistente (ADR 0012), vía `databricks.sdk` Statement Execution API |
-| Tabla Delta (memoria de sesión) | `workspace.finhive.conversation_sessions` | Continuidad de una misma conversación (`thread_id`) entre invocaciones separadas del proceso |
-| Tabla Delta (memoria de largo plazo) | `workspace.finhive.conversation_facts` | Hechos durables estilo MemGPT, compartidos entre conversaciones distintas |
-
-26 UC Functions registradas en total, los 5 dominios completos. Todas las tools de los 5
-dominios están envueltas con `finhive.tools.wrappers.safe_tool` (ADR 0007): errores de
-red/rate-limit se devuelven como observación al LLM en vez de crashear el grafo.
-
-Los 3 endpoints de FinHive tienen `usage_tracking_config` **y** `rate_limits` explícitos
-de AI Gateway (ADR 0008) — no solo el tracking default que Databricks aplica sin pedirlo.
-
-Ver `docs/architecture/adr/` (0001-0017) para el historial completo de estas decisiones.
+Pendiente para cuando se corra contra Databricks real (compu de trabajo, ver
+`README.md` → "Para correr contra Databricks real"): un schema `workspace.portfolio_intel`
+en Unity Catalog y las dos tablas Delta que espera `DatabricksDeltaStore`
+(`src/portfolio_intel/data/store.py`, ver ADR 0003) —
+`rua_use_case_inventory`/`ai_use_case_detail`, mismo esquema que los CSVs sintéticos
+(`src/portfolio_intel/data/schema.py`).
