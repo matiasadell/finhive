@@ -1,116 +1,108 @@
-"""Scorers (row-level) para `mlflow.genai.evaluate()` — ver `run_eval.py` y ADR 0014.
+"""Checks del golden set -- deterministas, sin LLM.
 
-Firma estándar de MLflow: `@scorer` sobre una función con argumentos
-keyword-only entre `inputs` (lo que recibió `predict_fn`), `outputs` (lo que
-devolvió `predict_fn` para ese ejemplo) y `expectations` (los valores
-esperados del dataset dorado, ej. `expected_teams`). Migrado desde
-`langsmith.evaluate()` (ADR 0013) sin cambiar la lógica de cada evaluador —
-solo la firma: `run.outputs` -> `outputs`, `example.outputs` -> `expectations`,
-`example.inputs` -> `inputs`.
+Decisión central del proyecto (ver PLAN.md, "Key decisions"): priorización,
+duplicados y value_status los calculan las tools de `tools/`, no el LLM --
+así que esta evaluación puede correr y significar algo real en esta máquina
+de desarrollo, sin conexión a Databricks (ver
+`prompts/constraints_environment.md`). No hay ningún LLM-judge acá; eso
+queda para cuando se corra el sistema completo (agentes + guardrails) en la
+compu de trabajo -- lo que se mide acá es si el *núcleo determinista* del
+sistema (lo que de verdad respalda cada recomendación) está bien calibrado.
 """
 
 from __future__ import annotations
 
-from typing import TypedDict
+from dataclasses import dataclass
 
-from mlflow.genai.scorers import scorer
+import pandas as pd
 
-from finhive.config.settings import get_chat_model
-
-_GROUNDEDNESS_PROMPT = (
-    "Sos un evaluador de groundedness para FinHive, un sistema de research "
-    "financiero multiagente. Te paso una pregunta, la respuesta final que "
-    "dio el sistema, y la evidencia real de los equipos de dominio que "
-    "consultaron tools (FRED, yfinance, SEC EDGAR, Alpha Vantage, "
-    "CoinGecko). Decidí si la respuesta está respaldada por esa evidencia — "
-    "cifras, fechas y afirmaciones concretas consistentes con ella — o si "
-    "contiene datos específicos sin respaldo visible (señal de "
-    "alucinación). grounded='no' solo ante una afirmación concreta sin "
-    "respaldo; una respuesta que admite no tener el dato cuenta como "
-    "grounded='si'. Si la respuesta menciona nombres, rankings u otros "
-    "datos que sí coinciden con la evidencia, aunque no repita cada cifra "
-    "exacta, también cuenta como grounded='si' — falta de detalle no es lo "
-    "mismo que alucinación."
-)
+from portfolio_intel.tools.duplication_tools import find_duplicate_use_cases
+from portfolio_intel.tools.prioritization_tools import compute_priority_scores, get_top_priorities
+from portfolio_intel.tools.recommendation_tools import generate_portfolio_recommendations
+from portfolio_intel.tools.value_realization_tools import compute_value_realization_status
 
 
-class _GroundednessScore(TypedDict):
-    grounded: str
-    reason: str
+@dataclass
+class EvalContext:
+    """Pipeline completo corrido una única vez, reusado por todos los checks."""
+
+    scored_df: pd.DataFrame
+    duplicate_pairs: list[dict]
+    recommendations: dict[str, dict]  # use_case_id -> recommendation dict
+
+    @classmethod
+    def build(cls, df: pd.DataFrame) -> "EvalContext":
+        scored = compute_priority_scores(df)
+        scored = compute_value_realization_status(scored)
+        pairs = find_duplicate_use_cases(df)
+        recs = {r["use_case_id"]: r for r in generate_portfolio_recommendations(df)}
+        return cls(scored_df=scored, duplicate_pairs=pairs, recommendations=recs)
 
 
-@scorer
-def routing_accuracy(*, outputs: dict, expectations: dict) -> float:
-    """1.0 si el/los equipo(s) invocados coinciden con lo esperado, 0.0 si no.
-
-    Para preguntas de un solo dominio: exacto. Para cross-domain (2+ equipos
-    esperados): alcanza con que todos los esperados hayan sido tocados (no
-    penaliza que además se sume un equipo extra). Para preguntas fuera de
-    scope (`expected_teams=[]`): correcto si `input_guardrail` bloqueó el
-    pedido sin invocar ningún equipo.
-    """
-    outputs = outputs or {}
-    expected_teams = set((expectations or {}).get("expected_teams", []))
-    actual_teams = set(outputs.get("actual_teams", []))
-    blocked = bool(outputs.get("blocked", False))
-
-    if not expected_teams:
-        correct = blocked and not actual_teams
-    else:
-        correct = (not blocked) and expected_teams.issubset(actual_teams)
-
-    return 1.0 if correct else 0.0
-
-
-@scorer
-def latency(*, outputs: dict) -> float:
-    """Latencia de `graph.invoke()` en segundos, medida en `run_eval.predict_fn()`."""
-    outputs = outputs or {}
-    return outputs.get("latency_seconds", 0.0)
-
-
-@scorer
-def groundedness(*, inputs: dict, outputs: dict) -> float | None:
-    """LLM-judge (modelo supervisor, no worker) sobre si la respuesta cita evidencia real.
-
-    No aplica a preguntas bloqueadas por `input_guardrail` (no hay respuesta
-    de dominio que evaluar) — devuelve `None` en ese caso, que
-    `mlflow.genai.evaluate()` excluye del promedio en vez de contarlo como 0.
-
-    Usa `"supervisor"` (Llama 3.3 70B), no `"worker"` (Llama 3.1 8B): en la
-    primera corrida completa del dataset dorado, el modelo worker devolvía
-    `grounded='no'` incluso ante una coincidencia literal palabra por
-    palabra entre respuesta y evidencia, con una razón fabricada — no era
-    un problema de prompt, el de 8B no es confiable para este juicio
-    semántico. Mismo hallazgo aplicado retroactivamente a
-    `output_guardrail_node` (ADR 0011) — ver ADR 0013. Se conserva este
-    prompt/judge propio tal cual en la migración a MLflow (ADR 0014) en vez
-    de adoptar el judge built-in `RetrievalGroundedness` — no hay necesidad
-    de re-validar un judge nuevo cuando este ya está probado.
-    """
-    outputs = outputs or {}
-    if outputs.get("blocked"):
-        return None
-
-    evidence = outputs.get("team_evidence", "")
-    answer = outputs.get("answer", "")
-    if not evidence:
-        return None
-
-    llm = get_chat_model("supervisor", temperature=0.0)
-    structured_llm = llm.with_structured_output(_GroundednessScore)
-    response = structured_llm.invoke(
-        [
-            {"role": "system", "content": _GROUNDEDNESS_PROMPT},
-            {
-                "role": "user",
-                "content": (
-                    f"Pregunta: {(inputs or {}).get('question', '')}\n\n"
-                    f"Respuesta final: {answer}\n\n"
-                    f"Evidencia de los equipos:\n{evidence}"
-                ),
-            },
-        ]
+def _check_duplicate_pair(item: dict, ctx: EvalContext) -> tuple[bool, str]:
+    a, b = item["use_case_id"], item["other_use_case_id"]
+    found = any(
+        {p["use_case_id_a"], p["use_case_id_b"]} == {a, b} for p in ctx.duplicate_pairs
     )
-    grounded = str(response.get("grounded", "si")).strip().lower() in ("si", "sí", "yes", "true")
-    return 1.0 if grounded else 0.0
+    detail = f"par {a}/{b} {'encontrado' if found else 'NO encontrado'} en find_duplicate_use_cases"
+    return found, detail
+
+
+def _check_top_priority(item: dict, ctx: EvalContext) -> tuple[bool, str]:
+    top_n = item.get("top_n", 5)
+    top = get_top_priorities(ctx.scored_df, top_n)
+    found = item["use_case_id"] in set(top["use case id"])
+    detail = f"{item['use_case_id']} {'está' if found else 'NO está'} en el top {top_n} de priority_score"
+    return found, detail
+
+
+def _check_value_status_in(item: dict, ctx: EvalContext) -> tuple[bool, str]:
+    rows = ctx.scored_df[ctx.scored_df["use case id"] == item["use_case_id"]]
+    if rows.empty:
+        return False, f"{item['use_case_id']} no existe en el dataset"
+    status = rows.iloc[0]["value_status"]
+    allowed = item["allowed_statuses"]
+    ok = status in allowed
+    detail = f"{item['use_case_id']}: value_status={status} (esperado uno de {allowed})"
+    return ok, detail
+
+
+def _check_recommended_action(item: dict, ctx: EvalContext) -> tuple[bool, str]:
+    rec = ctx.recommendations.get(item["use_case_id"])
+    if rec is None:
+        return False, f"{item['use_case_id']} no tiene recomendación"
+    ok = rec["action"] == item["expected_action"]
+    detail = f"{item['use_case_id']}: action={rec['action']} (esperado {item['expected_action']})"
+    return ok, detail
+
+
+_CHECKS = {
+    "duplicate_pair": _check_duplicate_pair,
+    "top_priority": _check_top_priority,
+    "value_status_in": _check_value_status_in,
+    "recommended_action": _check_recommended_action,
+}
+
+
+def run_golden_set(golden_set: list[dict], df: pd.DataFrame) -> list[dict]:
+    """Corre todos los checks del golden set contra `df`; un resultado por ítem.
+
+    Cada resultado: `{id, check, passed, detail}`. No lanza excepción si un
+    check individual falla -- eso es información (el pass_rate lo refleja),
+    no un error del harness.
+    """
+    ctx = EvalContext.build(df)
+    results = []
+    for item in golden_set:
+        check_fn = _CHECKS[item["check"]]
+        passed, detail = check_fn(item, ctx)
+        results.append(
+            {"id": item["id"], "check": item["check"], "passed": passed, "detail": detail}
+        )
+    return results
+
+
+def pass_rate(results: list[dict]) -> float:
+    if not results:
+        return 0.0
+    return sum(1 for r in results if r["passed"]) / len(results)
