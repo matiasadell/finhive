@@ -27,6 +27,7 @@ dependencies = [
     "langchain>=1.3",
     "databricks-langchain>=0.20",
     "databricks-sdk>=0.30",
+    "databricks-agents>=0.15",  # infra/databricks/deploy_agent.py (`from databricks import agents`)
     "mlflow[databricks]>=3.1.0",
     "python-dotenv>=1.0",
     "pandas>=2.2",

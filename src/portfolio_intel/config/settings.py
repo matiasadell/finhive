@@ -84,6 +84,20 @@ def get_sql_warehouse_id() -> str:
     return warehouse_id
 
 
+def get_databricks_workspace_email() -> str:
+    """Email del usuario autenticado en el workspace, vía `databricks.sdk.WorkspaceClient`.
+
+    Usado para armar el path del experimento de MLflow del despliegue
+    (`/Users/<email>/portfolio-intel-deploy`, ver
+    `infra/databricks/deploy_agent.py`) -- mismo auth ambiente (OAuth vía
+    `DATABRICKS_CONFIG_PROFILE`) que ya usa el resto de la conexión a
+    Databricks, sin token estático nuevo.
+    """
+    from databricks.sdk import WorkspaceClient
+
+    return WorkspaceClient().current_user.me().user_name
+
+
 def get_chat_model(tier: Literal["supervisor", "worker"], temperature: float = 0.1):
     """Instancia un `ChatDatabricks` apuntando al endpoint correcto según el rol.
 

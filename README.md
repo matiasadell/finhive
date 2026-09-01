@@ -71,7 +71,7 @@ data/sample_docs/     dataset sintético del AI portfolio (regenerado, no commit
 data/eval/             golden set de evaluación (data/eval/golden_set.json)
 notebooks/00_demo.py   demo de 4 escenarios end-to-end, corre local o como notebook de Databricks Repos
 tests/                 unit/ (núcleo determinista, sin LLM) + integration/ (estructural + live)
-docs/architecture/adr/ decisiones de arquitectura de este proyecto (ADRs 0001-0006)
+docs/architecture/adr/ decisiones de arquitectura de este proyecto (ADRs 0001-0007)
 outputs/                artefactos generados al correr notebooks/00_demo.py (reporte ejecutivo, transcripts)
 ```
 
@@ -109,14 +109,31 @@ Completar `.env`: `DATABRICKS_HOST`, `DATABRICKS_TOKEN`, `SQL_WAREHOUSE_ID` si s
 backend `databricks` (`PORTFOLIO_INTEL_DATA_BACKEND=databricks`). Con eso:
 
 ```bash
-pytest tests/ -v -m live          # los 3 smoke tests contra el grafo real
-python notebooks/00_demo.py       # los 4 escenarios ahora sí invocan el LLM real
+export PORTFOLIO_INTEL_DATA_BACKEND=databricks   # o setearlo en .env
+
+python infra/databricks/setup_catalog.py   # crea el schema + las 2 tablas Delta y las carga
+pytest tests/ -v -m live                   # los 3 smoke tests contra el grafo real
+python notebooks/00_demo.py                # los 4 escenarios ahora sí invocan el LLM real
 ```
 
-Nota: las tablas Delta (`workspace.portfolio_intel.*`) todavía no están provisionadas en
-ningún workspace real — `DatabricksDeltaStore` (`data/store.py`) está escrito y listo, pero
-el DDL/carga inicial es trabajo pendiente (ver ADR 0003), fuera de alcance de este pase
-según lo acordado con el usuario (`prompts/non_goals.md`).
+### Desplegar como endpoint real (MLflow / Mosaic AI Agent Framework)
+
+Con `setup_catalog.py` ya corrido, desde un **notebook de Databricks** (no desde Windows —
+ver ADR 0007 y el docstring de `infra/databricks/deploy_agent.py`):
+
+```
+notebooks/01_deploy_agent.py   # Run All
+```
+
+Esto loguea el modelo, lo registra en Unity Catalog
+(`workspace.portfolio_intel.portfolio_intel_agent`) y lo despliega como serving endpoint —
+aparece en la pestaña **Experiments** (el run del deploy) y **Serving**/**Agents** del
+workspace, invocable con requests reales vía `mlflow.deployments` o la Playground UI.
+Ninguno de estos dos pasos se pudo ejecutar ni verificar desde esta máquina de desarrollo
+(ver ADR 0007) — el código está escrito y su generación de SQL se validó localmente, pero
+la primera corrida real es, con alta probabilidad, donde van a aparecer bugs específicos de
+este proyecto (mismo patrón que documentaron las 7 bugs reales de finhive desplegando algo
+muy similar).
 
 ## Dataset
 

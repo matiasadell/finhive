@@ -107,10 +107,9 @@ class DatabricksDeltaStore(PortfolioDataStore):
     (OAuth ambiente, `DATABRICKS_CONFIG_PROFILE`). No se puede ejercitar
     desde esta máquina de desarrollo -- ver
     `prompts/constraints_environment.md`. Las dos tablas
-    (`UC_TABLE_USE_CASE_INVENTORY`, `UC_TABLE_USE_CASE_DETAIL`) todavía no
-    están provisionadas en ningún workspace real; provisionarlas (DDL +
-    carga desde los CSVs) es trabajo de infra futuro, fuera de alcance de
-    este pase (ver `prompts/non_goals.md`).
+    (`UC_TABLE_USE_CASE_INVENTORY`, `UC_TABLE_USE_CASE_DETAIL`) se crean/
+    cargan con `infra/databricks/setup_catalog.py` (ver ADR 0007), tampoco
+    ejercitado desde acá.
     """
 
     def __init__(self, warehouse_id: str | None = None) -> None:
@@ -129,9 +128,27 @@ class DatabricksDeltaStore(PortfolioDataStore):
         if response.status and response.status.state == StatementState.FAILED:
             raise RuntimeError(f"statement SQL falló: {response.status.error}")
 
-        columns = [c.name for c in response.manifest.schema.columns] if response.manifest else []
+        schema_columns = response.manifest.schema.columns if response.manifest else []
+        columns = [c.name for c in schema_columns]
         rows = response.result.data_array if response.result and response.result.data_array else []
-        return pd.DataFrame(rows, columns=columns)
+        df = pd.DataFrame(rows, columns=columns)
+
+        # La Statement Execution API siempre devuelve `data_array` como
+        # strings, sea cual sea el tipo real de la columna Delta -- sin
+        # castear, `df["max impact"] / df["projected total investment"]` (y
+        # cualquier otra cuenta de tools/*.py) rompería con TypeError contra
+        # este backend, aunque LocalCSVStore (donde pandas infiere tipos
+        # solo) las mismas cuentas anden bien. Se castea según
+        # `manifest.schema.columns[i].type_name`, no a ciegas.
+        for col in schema_columns:
+            type_name = str(col.type_name.value if hasattr(col.type_name, "value") else col.type_name)
+            if type_name in ("INT", "BIGINT", "SMALLINT", "TINYINT", "DOUBLE", "FLOAT", "DECIMAL"):
+                df[col.name] = pd.to_numeric(df[col.name], errors="coerce")
+            elif type_name in ("DATE", "TIMESTAMP"):
+                df[col.name] = pd.to_datetime(df[col.name], errors="coerce")
+            # STRING/BOOLEAN/etc. quedan como vinieron (object) -- mismo tipo
+            # que devuelve pandas.read_csv para columnas de texto.
+        return df
 
     def get_ruai_inventory(self) -> pd.DataFrame:
         return self._execute_sql(f"SELECT * FROM {UC_FULL_SCHEMA}.{UC_TABLE_USE_CASE_INVENTORY}")

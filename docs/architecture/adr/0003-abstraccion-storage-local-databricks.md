@@ -36,8 +36,12 @@ backend vía `PORTFOLIO_INTEL_DATA_BACKEND` (`local` por default). Todas las too
 - El esquema de columnas (`data/schema.py`) es el contrato real entre ambos backends: si
   el CSV local y las tablas Delta alguna vez divergen en nombres de columna, el bug
   aparece ahí, no en la lógica de negocio.
-- Queda pendiente, para cuando se use `DatabricksDeltaStore` de verdad: el DDL de las dos
-  tablas Delta y el script de carga inicial desde los CSVs (o desde los datos reales, si
-  ya existen para entonces) -- no se escribió en este pase porque no hay forma de
-  verificarlo sin la conexión real, y escribir infra no verificable es peor que no
-  escribirla (queda como próximo paso explícito en el README, no como código sin probar).
+- **Actualización (ADR 0007)**: `infra/databricks/setup_catalog.py` ya escribe el DDL de
+  las dos tablas Delta y carga los CSVs sintéticos -- generación de SQL verificada
+  localmente contra el dataset real (columnas, tipos, escaping, NULLs), pero **la
+  ejecución contra un workspace real sigue sin probarse** desde acá, mismo motivo de
+  siempre. `DatabricksDeltaStore._execute_sql` también se corrigió para castear columnas
+  numéricas/fecha según el tipo real de la tabla (`manifest.schema.columns[i].type_name`)
+  -- sin eso, todo llegaba como string y las cuentas de `tools/*.py` (`max impact / 
+  projected total investment`, etc.) hubieran roto contra este backend aunque anduvieran
+  bien contra `LocalCSVStore` (donde pandas infiere tipos del CSV).
