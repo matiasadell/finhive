@@ -8,10 +8,24 @@ license = { text = "MIT" }
 authors = [{ name = "Facundo Mazzola" }]
 
 dependencies = [
-    "langgraph>=0.3",
-    "langgraph-supervisor>=0.0.9",
-    "langchain>=0.3",
-    "databricks-langchain>=0.3",
+    # Pisos de versión más altos que "lo mínimo que alcanza" en el
+    # ecosistema langgraph/langchain, no arbitrarios: la resolución más
+    # suelta que se probó en esta máquina de desarrollo (contra Python
+    # 3.11, ver nota abajo) mezcló versiones incompatibles entre sí
+    # (`langgraph-prebuilt` más nuevo que lo que soportaba el `langgraph`
+    # core resuelto, `ImportError: cannot import name 'ExecutionInfo' from
+    # 'langgraph.runtime'`) hasta subir estos pisos -- verificado
+    # end-to-end con `langgraph==1.2.11` + `langchain==1.3.18` (grafo
+    # completo compila y falla limpio recién en la llamada real a
+    # Databricks, ver `prompts/constraints_environment.md`). No se fijaron
+    # como pines exactos (`==`) porque eso rompe la resolución desde cero
+    # (`langchain==1.2.10` declara `langgraph<1.1.0`, conflicto de
+    # metadata) -- estos mínimos alcanzan para que `pip`/`uv` converjan
+    # solos a una combinación consistente.
+    "langgraph>=1.2",
+    "langgraph-supervisor>=0.0.31",
+    "langchain>=1.3",
+    "databricks-langchain>=0.20",
     "databricks-sdk>=0.30",
     "mlflow[databricks]>=3.1.0",
     "python-dotenv>=1.0",
@@ -45,7 +59,11 @@ target-version = "py311"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# "not live" por default: los tests marcados `live` necesitan una conexión
+# real a Databricks (LLM + SQL warehouse) que esta máquina de desarrollo no
+# tiene (ver prompts/constraints_environment.md) -- correrlos a mano en la
+# compu de trabajo con `pytest -m live`.
+addopts = "-m 'not live'"
 markers = [
-    "live: requiere una conexión real a Databricks (LLM + SQL warehouse) -- no",
-    "    corre en esta máquina de desarrollo, solo en la compu de trabajo.",
+    "live: requiere una conexión real a Databricks (LLM + SQL warehouse) -- correr a mano en la compu de trabajo, no acá.",
 ]
