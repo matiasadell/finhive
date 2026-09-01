@@ -1,1 +1,1 @@
-"""Tools de datos financieros: FRED, yfinance, SEC EDGAR, Alpha Vantage, Tavily, CoinGecko."""
+"""Tools deterministas del portfolio: priorización, duplicados, value realization, recomendación."""

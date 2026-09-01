@@ -90,22 +90,80 @@ _DUP_TEXT = {
 _RECORDS: list[dict] = [
     dict(id="UC-001", title="AI-Powered Claims Triage", lob="Claims",
          value_chain="Claims", sub_value_chain="Adjudication",
-         type_of_ai="Predictive ML", stage="Full Production", tier="scale"),
+         type_of_ai="Predictive ML", stage="Full Production", tier="scale",
+         challenge=(
+             "Los examinadores de claims de auto pasan horas revisando "
+             "manualmente fotos de danos y estimaciones de repuestos antes "
+             "de aprobar un pago, generando cuellos de botella en la cola "
+             "de adjudicacion."
+         ),
+         target=(
+             "Clasificar automaticamente la severidad del dano a partir de "
+             "fotos para acelerar la aprobacion de claims de bajo riesgo."
+         )),
     dict(id="UC-002", title="Automated FNOL Intake Assistant", lob="Claims",
          value_chain="Claims", sub_value_chain="First Notice of Loss",
-         type_of_ai="NLP/Classification", stage="Limited Production", tier="scale"),
+         type_of_ai="NLP/Classification", stage="Limited Production", tier="scale",
+         challenge=(
+             "El formulario inicial de reporte de siniestro (FNOL) obliga "
+             "al asegurado a completar campos tecnicos que no entiende, "
+             "generando datos incompletos que hay que corregir despues."
+         ),
+         target=(
+             "Guiar al asegurado con un asistente conversacional que "
+             "complete el FNOL en lenguaje natural y valide los datos en "
+             "el momento."
+         )),
     dict(id="UC-003", title="Underwriting Risk Scoring Model", lob="Underwriting",
          value_chain="Underwriting", sub_value_chain="Risk Selection",
-         type_of_ai="Predictive ML", stage="Full Production", tier="scale"),
+         type_of_ai="Predictive ML", stage="Full Production", tier="scale",
+         challenge=(
+             "Los suscriptores de polizas de auto revisan cada solicitud "
+             "nueva a mano contra decenas de reglas de riesgo, sin poder "
+             "priorizar cuales requieren atencion urgente."
+         ),
+         target=(
+             "Puntuar automaticamente el nivel de riesgo de cada solicitud "
+             "nueva para que los suscriptores prioricen su cola de trabajo."
+         )),
     dict(id="UC-004", title="Fraud Anomaly Detection Engine", lob="Fraud & SIU",
          value_chain="Fraud", sub_value_chain="Detection",
-         type_of_ai="Predictive ML", stage="Limited Production", tier="scale"),
+         type_of_ai="Predictive ML", stage="Limited Production", tier="scale",
+         challenge=(
+             "El volumen de siniestros supera la capacidad del equipo de "
+             "SIU para revisar manualmente cada uno en busca de indicios "
+             "de fraude."
+         ),
+         target=(
+             "Marcar automaticamente los siniestros con mayor probabilidad "
+             "de fraude para que el equipo de SIU enfoque su revision ahi "
+             "primero."
+         )),
     dict(id="UC-005", title="Auto Insurance Pricing Optimization", lob="Actuarial",
          value_chain="Pricing & Actuarial", sub_value_chain="Pricing",
-         type_of_ai="Optimization/Rules Engine", stage="Limited Production", tier="scale"),
+         type_of_ai="Optimization/Rules Engine", stage="Limited Production", tier="scale",
+         challenge=(
+             "Las tarifas de polizas de auto se actualizan trimestralmente "
+             "con un proceso manual de hojas de calculo que no incorpora "
+             "senales de riesgo recientes."
+         ),
+         target=(
+             "Optimizar la tarifa de cada poliza de auto de forma continua "
+             "incorporando senales de riesgo actualizadas."
+         )),
     dict(id="UC-006", title="Commercial Underwriting Submission Scoring", lob="Underwriting",
          value_chain="Underwriting", sub_value_chain="Submission Intake",
-         type_of_ai="Predictive ML", stage="Full Production", tier="scale"),
+         type_of_ai="Predictive ML", stage="Full Production", tier="scale",
+         challenge=(
+             "Las solicitudes de polizas comerciales llegan en formatos "
+             "heterogeneos (PDF, email, portal) y el equipo de intake las "
+             "clasifica manualmente antes de asignarlas a un suscriptor."
+         ),
+         target=(
+             "Clasificar y enrutar automaticamente cada solicitud "
+             "comercial entrante al suscriptor correcto segun el tipo de "
+             "riesgo."
+         )),
 
     # Cluster A: chatbot de status de claims, construido dos veces por region
     dict(id="UC-007", title="Claims Status Chatbot (East Region)", lob="Claims",
@@ -155,6 +213,15 @@ _RECORDS: list[dict] = [
     dict(id="UC-015", title="Automated Policy Document Summarizer", lob="Underwriting",
          value_chain="Underwriting", sub_value_chain="Documentation",
          type_of_ai="Generative AI", stage="Limited Production", tier="at_risk",
+         challenge=(
+             "Los suscriptores dedican horas a resumir polizas comerciales "
+             "extensas antes de una renovacion, un trabajo repetitivo que "
+             "retrasa la decision final."
+         ),
+         target=(
+             "Generar automaticamente un resumen ejecutivo de cada poliza "
+             "comercial antes de la revision de renovacion."
+         ),
          risk_note=(
              "El costo de cómputo de inferencia terminó siendo 3x lo "
              "presupuestado; el caso ya está en producción limitada pero el "
@@ -163,6 +230,16 @@ _RECORDS: list[dict] = [
     dict(id="UC-016", title="Predictive Churn Model for Renewals", lob="Marketing",
          value_chain="Marketing", sub_value_chain="Retention",
          type_of_ai="Predictive ML", stage="Pilot", tier="at_risk",
+         challenge=(
+             "Un porcentaje creciente de clientes no renueva su poliza sin "
+             "que el equipo de marketing tenga anticipacion suficiente "
+             "para intervenir."
+         ),
+         target=(
+             "Predecir con anticipacion que clientes tienen alto riesgo de "
+             "no renovar para poder ofrecerles una intervencion de "
+             "retencion."
+         ),
          risk_note=(
              "La calidad de los datos históricos de renovación tiene huecos "
              "significativos en dos de los cuatro mercados objetivo, "
@@ -171,6 +248,15 @@ _RECORDS: list[dict] = [
     dict(id="UC-017", title="Generative AI Claims Letter Drafting", lob="Claims",
          value_chain="Claims", sub_value_chain="Correspondence",
          type_of_ai="Generative AI", stage="Pilot", tier="at_risk",
+         challenge=(
+             "Redactar cartas de resolucion de claims a medida para cada "
+             "asegurado consume tiempo del equipo de claims que podria "
+             "dedicarse a casos complejos."
+         ),
+         target=(
+             "Generar un primer borrador de carta de resolucion de claims "
+             "que el equipo solo tenga que revisar y ajustar."
+         ),
          risk_note=(
              "Revisión legal encontró errores de tono/precisión en el 12% de "
              "las cartas generadas; el piloto está pausado hasta resolver "
@@ -179,6 +265,15 @@ _RECORDS: list[dict] = [
     dict(id="UC-018", title="Actuarial Reserve Estimation Assistant", lob="Actuarial",
          value_chain="Pricing & Actuarial", sub_value_chain="Reserving",
          type_of_ai="Predictive ML", stage="Limited Production", tier="at_risk",
+         challenge=(
+             "El equipo actuarial calcula reservas de siniestros "
+             "pendientes con hojas de calculo que no escalan al volumen "
+             "actual de la cartera."
+         ),
+         target=(
+             "Asistir el calculo de reservas de siniestros pendientes con "
+             "un modelo que incorpore el historial completo de la cartera."
+         ),
          risk_note=(
              "Compliance regulatorio todavía no aprobó el modelo para todos "
              "los estados donde opera la aseguradora, bloqueando el "
@@ -187,6 +282,15 @@ _RECORDS: list[dict] = [
     dict(id="UC-019", title="IT Ops Incident Triage Bot", lob="IT Operations",
          value_chain="IT Operations", sub_value_chain="Infrastructure",
          type_of_ai="Predictive ML", stage="Pilot", tier="at_risk",
+         challenge=(
+             "Los incidentes de infraestructura de TI se triagean "
+             "manualmente por orden de llegada, sin priorizar los que "
+             "afectan sistemas criticos de cara al cliente."
+         ),
+         target=(
+             "Priorizar automaticamente los incidentes de infraestructura "
+             "segun su impacto real en sistemas criticos."
+         ),
          risk_note=(
              "El equipo de plataforma que iba a mantener el bot fue "
              "reasignado a otra iniciativa; no hay owner técnico activo hace "
@@ -196,37 +300,139 @@ _RECORDS: list[dict] = [
     # Candidatos a discontinuar
     dict(id="UC-020", title="Legacy Document OCR Cleanup Tool", lob="IT Operations",
          value_chain="IT Operations", sub_value_chain="DevOps",
-         type_of_ai="Computer Vision", stage="Ideation", tier="discontinue"),
+         type_of_ai="Computer Vision", stage="Ideation", tier="discontinue",
+         challenge=(
+             "Documentos legacy escaneados en distintos formatos "
+             "dificultan que las herramientas internas los procesen de "
+             "forma consistente."
+         ),
+         target=(
+             "Normalizar automaticamente documentos legacy escaneados a un "
+             "formato unico y consistente."
+         )),
     dict(id="UC-021", title="Employee Sentiment Survey Analyzer", lob="HR",
          value_chain="HR", sub_value_chain="Employee Experience",
-         type_of_ai="NLP/Classification", stage="Ideation", tier="discontinue"),
+         type_of_ai="NLP/Classification", stage="Ideation", tier="discontinue",
+         challenge=(
+             "Las encuestas de clima interno generan cientos de "
+             "comentarios abiertos que RRHH no llega a leer ni categorizar "
+             "a tiempo."
+         ),
+         target=(
+             "Categorizar y resumir automaticamente los comentarios "
+             "abiertos de las encuestas de clima para RRHH."
+         )),
     dict(id="UC-022", title="Marketing Copy A/B Test Generator", lob="Marketing",
          value_chain="Marketing", sub_value_chain="Content",
-         type_of_ai="Generative AI", stage="Ideation", tier="discontinue"),
+         type_of_ai="Generative AI", stage="Ideation", tier="discontinue",
+         challenge=(
+             "El equipo de marketing prueba manualmente variantes de copy "
+             "publicitario, un proceso lento que limita cuantas campanas "
+             "pueden testear por trimestre."
+         ),
+         target=(
+             "Generar variantes de copy publicitario para acelerar las "
+             "pruebas A/B de campanas de marketing."
+         )),
     dict(id="UC-023", title="Vendor Invoice Matching Bot", lob="IT Operations",
          value_chain="IT Operations", sub_value_chain="Finance Ops",
-         type_of_ai="RPA + AI", stage="Ideation", tier="discontinue"),
+         type_of_ai="RPA + AI", stage="Ideation", tier="discontinue",
+         challenge=(
+             "Conciliar facturas de proveedores contra ordenes de compra "
+             "se hace a mano en el equipo de finance ops, un proceso "
+             "propenso a errores."
+         ),
+         target=(
+             "Conciliar automaticamente facturas de proveedores contra "
+             "ordenes de compra para reducir el trabajo manual de finance "
+             "ops."
+         )),
     dict(id="UC-024", title="Internal FAQ Chatbot for Underwriters", lob="Underwriting",
          value_chain="Underwriting", sub_value_chain="Enablement",
-         type_of_ai="Generative AI", stage="On Hold", tier="discontinue"),
+         type_of_ai="Generative AI", stage="On Hold", tier="discontinue",
+         challenge=(
+             "Los suscriptores nuevos hacen las mismas preguntas repetidas "
+             "sobre politicas internas a sus colegas senior, "
+             "interrumpiendo su trabajo."
+         ),
+         target=(
+             "Responder preguntas frecuentes de suscriptores nuevos sobre "
+             "politicas internas sin depender de un colega senior."
+         )),
 
     # Relleno "monitor" -- realismo de portfolio, sin escenario especial
     dict(id="UC-025", title="Commercial Lines Submission Triage", lob="Underwriting",
          value_chain="Underwriting", sub_value_chain="Submission Intake",
-         type_of_ai="NLP/Classification", stage="Pilot", tier="monitor"),
+         type_of_ai="NLP/Classification", stage="Pilot", tier="monitor",
+         challenge=(
+             "El equipo de lineas comerciales recibe sumisiones de "
+             "corredores con informacion incompleta que hay que pedir de "
+             "vuelta antes de poder cotizar."
+         ),
+         target=(
+             "Detectar automaticamente que informacion falta en una "
+             "sumision comercial entrante antes de asignarla a un "
+             "suscriptor."
+         )),
     dict(id="UC-026", title="Customer Self-Service Portal NLU", lob="Customer Service",
          value_chain="Customer Service", sub_value_chain="Self-Service Portal",
-         type_of_ai="NLP/Classification", stage="Limited Production", tier="monitor"),
+         type_of_ai="NLP/Classification", stage="Limited Production", tier="monitor",
+         challenge=(
+             "Los clientes que usan el portal de autoservicio abandonan la "
+             "sesion cuando no encuentran la opcion que buscan entre los "
+             "menus actuales."
+         ),
+         target=(
+             "Entender la intencion del cliente en lenguaje natural dentro "
+             "del portal de autoservicio y llevarlo directo a la opcion "
+             "correcta."
+         )),
     dict(id="UC-027", title="Telematics Driving Score Model", lob="Actuarial",
          value_chain="Pricing & Actuarial", sub_value_chain="Telematics",
-         type_of_ai="Predictive ML", stage="Pilot", tier="monitor"),
+         type_of_ai="Predictive ML", stage="Pilot", tier="monitor",
+         challenge=(
+             "Los datos crudos de telematica de manejo se acumulan sin que "
+             "el equipo actuarial tenga forma sistematica de traducirlos "
+             "en un score de riesgo."
+         ),
+         target=(
+             "Convertir los datos crudos de telematica de manejo en un "
+             "score de riesgo de conduccion individual."
+         )),
     dict(id="UC-028", title="Claims Subrogation Opportunity Finder", lob="Claims",
          value_chain="Claims", sub_value_chain="Subrogation",
-         type_of_ai="Predictive ML", stage="Pilot", tier="monitor"),
+         type_of_ai="Predictive ML", stage="Pilot", tier="monitor",
+         challenge=(
+             "El equipo de subrogacion revisa manualmente cada claim "
+             "cerrado para detectar oportunidades de recupero, un proceso "
+             "que no escala con el volumen."
+         ),
+         target=(
+             "Identificar automaticamente que claims cerrados tienen una "
+             "oportunidad de subrogacion real que vale la pena perseguir."
+         )),
     dict(id="UC-029", title="Agent Call Summarization Assistant", lob="Customer Service",
          value_chain="Customer Service", sub_value_chain="Contact Center",
-         type_of_ai="Generative AI", stage="Limited Production", tier="monitor"),
+         type_of_ai="Generative AI", stage="Limited Production", tier="monitor",
+         challenge=(
+             "Los agentes del call center escriben a mano el resumen de "
+             "cada llamada despues de cortar, un paso que alarga el "
+             "tiempo entre llamadas."
+         ),
+         target=(
+             "Generar automaticamente el resumen de cada llamada del call "
+             "center a partir de la transcripcion."
+         )),
     dict(id="UC-030", title="HR Onboarding Document Automation", lob="HR",
+         challenge=(
+             "El onboarding de nuevos empleados requiere completar y "
+             "archivar manualmente una docena de documentos distintos en "
+             "sistemas separados."
+         ),
+         target=(
+             "Automatizar la recoleccion y archivo de los documentos de "
+             "onboarding de nuevos empleados en un solo flujo."
+         ),
          value_chain="HR", sub_value_chain="Onboarding",
          type_of_ai="RPA + AI", stage="Pilot", tier="monitor"),
 ]
@@ -287,18 +493,23 @@ def generate_use_cases() -> list[dict]:
 
         dup_group = rec.get("dup_group")
         if dup_group:
+            # Casos de un mismo cluster comparten texto (con overlap real a
+            # propósito, ver `_DUP_TEXT`) -- es justamente la señal que
+            # `duplication_tools.find_duplicate_use_cases` tiene que
+            # encontrar.
             challenge_tpl, target_tpl = _DUP_TEXT[dup_group]
             business_challenge = challenge_tpl.format(region=rec.get("dup_region", ""))
             target_state = target_tpl.format(region=rec.get("dup_region", ""))
         else:
-            business_challenge = (
-                f"El equipo de {rec['lob']} necesita mejorar {rec['sub_value_chain']} "
-                "dentro de su proceso actual, hoy mayormente manual."
-            )
-            target_state = (
-                f"Automatizar {rec['sub_value_chain']} con IA para reducir tiempo "
-                "de ciclo y mejorar consistencia."
-            )
+            # Todo caso no-duplicado trae su propio texto específico
+            # (`challenge`/`target` en `_RECORDS`) -- a propósito, no una
+            # plantilla genérica: un texto genérico compartido generaba
+            # falsos positivos de duplicación entre casos sin relación real
+            # (mismo léxico repetido en cada fila), detectado corriendo
+            # `duplication_tools.find_duplicate_use_cases` sobre una versión
+            # anterior de este dataset.
+            business_challenge = rec["challenge"]
+            target_state = rec["target"]
 
         risk_note = rec.get("risk_note", "")
 

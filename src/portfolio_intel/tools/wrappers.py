@@ -1,11 +1,14 @@
 """Wrapper defensivo para tools: convierte excepciones en observaciones.
 
-Hallazgo real (probando crypto_alt contra CoinGecko bajo rate limiting):
-sin este wrapper, una excepción dentro de una tool (error de red, rate limit
-429, timeout) se propaga sin capturar y crashea el `graph.invoke()` completo
-del sistema jerárquico — no queda como una observación que el ReAct worker
-pueda ver y manejar, simplemente revienta la request del usuario entera.
-Aplicable a los 5 dominios por igual, no es específico de ninguna API.
+Patrón heredado de finhive (`tools/wrappers.py`, hallazgo real ahí probando
+crypto_alt contra CoinGecko bajo rate limiting): sin este wrapper, una
+excepción dentro de una tool (dato faltante, backend Databricks
+inalcanzable, un cálculo que no puede correr con los datos que llegaron) se
+propaga sin capturar y crashea el `graph.invoke()` completo -- no queda como
+una observación que el agente ReAct pueda ver y manejar, simplemente revienta
+la request entera. Aplicable a las 4 tools deterministas de este proyecto por
+igual (`tools/prioritization_tools.py`, `duplication_tools.py`,
+`value_realization_tools.py`, `recommendation_tools.py`).
 
 Uso: `tool(safe_tool(mi_funcion))` en vez de `tool(mi_funcion)` al construir
 la lista de tools de cada worker.
