@@ -1,211 +1,103 @@
-# Databricks notebook source
-# MAGIC %md
-# MAGIC # FinHive — Demo interactiva
-# MAGIC
-# MAGIC Corre el sistema jerárquico completo (top-level supervisor → 5 supervisores de
-# MAGIC dominio → 13 workers ReAct) directamente en un notebook de Databricks, contra
-# MAGIC los Foundation Model APIs nativos (gratis en Free Edition) y las APIs de datos
-# MAGIC reales de cada dominio.
-# MAGIC
-# MAGIC **Antes de correr esto**: las keys de FRED / Alpha Vantage / Tavily ya están
-# MAGIC cargadas en el secret scope `finhive` (`databricks secrets list-secrets finhive`
-# MAGIC para confirmar). SEC EDGAR, yfinance y CoinGecko no necesitan key.
-# MAGIC
-# MAGIC **Ojo con la cuota**: Alpha Vantage (News & Sentiment) tiene free tier chico
-# MAGIC (~25 requests/día) y CoinGecko (Crypto) rate-limitea uso anónimo intensivo — no
-# MAGIC hace falta correr las 6 celdas de prueba muchas veces seguidas.
+"""Demo de Portfolio Intel: 4 escenarios end-to-end, con outputs reales.
 
-# COMMAND ----------
+A diferencia del `00_demo.py` de finhive (celdas de notebook `# COMMAND
+----------`, pensado para correr solo dentro de un notebook de Databricks
+Repos vía `dbutils`), este es un script Python plano -- corre tal cual con
+`python notebooks/00_demo.py` en esta máquina de desarrollo, y también sirve
+sin cambios como notebook de Databricks Repos (`Run All`) una vez ahí, sin
+depender de `dbutils` para nada de su lógica propia.
 
-# MAGIC %md ## 1. Instalar el paquete (modo editable, desde este mismo Repo)
+Cada escenario hace dos cosas:
+1. Invoca el grafo completo de agentes (`build_top_supervisor`) -- esto
+   necesita un LLM real vía Databricks, así que en esta máquina de
+   desarrollo falla en la llamada al modelo (ver
+   `prompts/constraints_environment.md`); el fallo se atrapa y se explica,
+   no se deja como traceback crudo.
+2. Llama `render_executive_report` directo -- 100% determinista, sin LLM,
+   corre siempre. Es la parte que de verdad se puede verificar acá.
 
-# COMMAND ----------
+Los outputs (transcript del grafo si corrió, y el reporte ejecutivo) se
+escriben a `outputs/demo_scenario_{n}_*.md`.
+"""
 
-# Ruta del Repo en este workspace. Si clonaste el repo en otro path, ajustar acá.
-REPO_PATH = "/Workspace/Users/matiasadell@hotmail.com/finhive"
+from __future__ import annotations
 
-# COMMAND ----------
+from pathlib import Path
 
-# MAGIC %md
-# MAGIC **Ojo con las versiones**: `pyproject.toml` declara rangos abiertos
-# MAGIC (`langgraph>=0.3`, sin tope superior) — un `%pip install -e` resuelve el
-# MAGIC árbol de dependencias de cero cada vez que corre, y no hay garantía de
-# MAGIC que aterrice siempre en la misma combinación (visto en vivo: una
-# MAGIC reinstalación en medio de una sesión de debugging bajó a
-# MAGIC `langgraph==1.0.10` / `langgraph-prebuilt==1.0.13`, incompatibles entre sí
-# MAGIC — `ImportError: cannot import name 'ExecutionInfo' from
-# MAGIC 'langgraph.runtime'`). Para evitarlo, se instala `finhive` sin resolver
-# MAGIC dependencias (`--no-deps`) y después se clavan las versiones exactas ya
-# MAGIC validadas en `uv.lock` — la misma combinación que usa el entorno local.
+from portfolio_intel.data.store import load_portfolio_data
+from portfolio_intel.graph.top_supervisor import build_top_supervisor
+from portfolio_intel.reporting.executive_report import render_executive_report
 
-# COMMAND ----------
+_OUTPUTS_DIR = Path(__file__).resolve().parents[1] / "outputs"
 
-# MAGIC %pip install -e {REPO_PATH} --no-deps
-
-# COMMAND ----------
-
-# MAGIC %pip install "langgraph==1.2.11" "langgraph-prebuilt==1.1.0" "langgraph-checkpoint==4.2.0" "langchain==1.3.18" "langchain-core==1.6.1" "databricks-langchain==0.20.0" "langgraph-supervisor==0.0.31"
-
-# COMMAND ----------
-
-dbutils.library.restartPython()
-
-# COMMAND ----------
-
-import sys
-
-# Red de seguridad: el editable install de arriba a veces no queda resuelto
-# por el import system después de este restart en cómputo Serverless (visto
-# en vivo: `pip show finhive` confirmaba el paquete instalado, pero
-# `importlib.util.find_spec("finhive")` devolvía `None` igual). Se agrega
-# `src/` directo al `sys.path` acá, inmediatamente después del restart —no
-# en la celda que arma el grafo— para que quede resuelto sin importar a qué
-# sección saltes después (ej. probar el AI Gateway sin haber armado el
-# grafo todavía). `REPO_PATH` no sobrevive al restart de la celda anterior,
-# así que se redefine acá.
-REPO_PATH = "/Workspace/Users/matiasadell@hotmail.com/finhive"
-sys.path.insert(0, f"{REPO_PATH}/src")
-
-# COMMAND ----------
-
-# MAGIC %md ## 2. Credenciales — desde Databricks Secrets, no desde un `.env`
-# MAGIC
-# MAGIC En local, `finhive.config.settings` lee estas keys de variables de entorno
-# MAGIC (cargadas desde `.env` con `python-dotenv`). Acá no hay `.env` — se cargan las
-# MAGIC mismas variables de entorno, pero con el valor real leído de forma nativa desde
-# MAGIC el secret scope de Databricks (`dbutils.secrets.get`), nunca hardcodeado ni
-# MAGIC impreso en ninguna celda.
-
-# COMMAND ----------
-
-import os
-
-os.environ["FRED_API_KEY"] = dbutils.secrets.get(scope="finhive", key="fred_api_key")
-os.environ["ALPHA_VANTAGE_API_KEY"] = dbutils.secrets.get(scope="finhive", key="alpha_vantage_api_key")
-os.environ["TAVILY_API_KEY"] = dbutils.secrets.get(scope="finhive", key="tavily_api_key")
-os.environ["SEC_EDGAR_USER_AGENT"] = "FinHive research-agent matiasadell@hotmail.com"
-
-# El top-level supervisor pasa por Unity AI Gateway (routing real entre dos
-# modelos, ver ADR 0009/0010) vía un cliente OpenAI-compatible, que necesita
-# host + token. Acá, en vez de un secret estático, se usa el contexto propio
-# de esta ejecución del notebook -- un token de corta duración, sin
-# necesidad de generar ni guardar ningún PAT.
-_ctx = dbutils.notebook.entry_point.getDbutils().notebook().getContext()
-os.environ["DATABRICKS_HOST"] = _ctx.apiUrl().get()
-os.environ["DATABRICKS_TOKEN"] = _ctx.apiToken().get()
-
-print("Credenciales cargadas en el entorno (valores no impresos).")
-
-# COMMAND ----------
-
-# MAGIC %md ## 3. Armar el grafo jerárquico completo
-
-# COMMAND ----------
-
-import uuid
-
-import mlflow
-import mlflow.langchain
-
-mlflow.langchain.autolog()
-
-from finhive.graph import build_top_supervisor
-
-graph = build_top_supervisor()
-
-# Un thread_id nuevo por corrida del notebook, no un valor fijo -- la memoria
-# de sesión (ADR 0012) persiste de verdad en tablas Delta de Unity Catalog,
-# sobrevive a cualquier restart de Python. Con un thread_id fijo tipo
-# "default", cada vez que se re-corre el notebook (ej. debuggeando) el
-# historial de preguntas viejas de corridas anteriores se sigue acumulando y
-# se antepone a la pregunta actual -- visto en vivo: una pregunta de macro
-# devolvía equipos de crypto_alt mezclados, arrastrados de un `ask()` sobre
-# Bitcoin de una corrida anterior. Mismo hallazgo que ADR 0013 #5, aplicado acá
-# al notebook de demo en vez de a los tests de integración.
-DEMO_THREAD_ID = f"demo-{uuid.uuid4().hex[:8]}"
-print(f"Grafo jerárquico compilado: 5 equipos de dominio listos (thread_id: {DEMO_THREAD_ID}).")
-
-# COMMAND ----------
+_SCENARIOS = [
+    (
+        "quarterly_prioritization",
+        "Tenemos presupuesto limitado para el próximo trimestre. ¿Qué casos de uso "
+        "de IA deberíamos priorizar primero?",
+    ),
+    (
+        "reuse_check",
+        "Estamos por lanzar un nuevo chatbot de status de claims para la región "
+        "Este. ¿Hay algo parecido ya en marcha en el portfolio?",
+    ),
+    (
+        "value_realization_review",
+        "¿Qué casos de uso ya aprobados no están en camino de realizar el valor "
+        "que prometieron?",
+    ),
+    (
+        "executive_recommendation",
+        "Dame la recomendación completa del portfolio: qué escalar, consolidar, "
+        "reducir o discontinuar.",
+    ),
+]
 
 
-def ask(question: str) -> None:
-    """Invoca el supervisor raíz y muestra qué equipos respondieron y la respuesta final."""
-    result = graph.invoke(
-        {"messages": [("user", question)]},
-        config={"configurable": {"thread_id": DEMO_THREAD_ID}},
-    )
-    teams = [m.name for m in result["messages"] if getattr(m, "name", None) and str(m.name).endswith("_team")]
-    print(f"Pregunta: {question}")
-    print(f"Equipos invocados: {teams}")
-    print(f"Respuesta:\n{result['messages'][-1].content}")
-    print("-" * 80)
+def _run_agent_scenario(graph, question: str) -> str:
+    """Invoca el grafo; devuelve el transcript o una explicación del fallo esperado."""
+    try:
+        result = graph.invoke({"messages": [("user", question)]})
+        agent_messages = [
+            m
+            for m in result["messages"]
+            if getattr(m, "name", None) and str(m.name).endswith("_agent")
+        ]
+        lines = [f"Agentes invocados: {[m.name for m in agent_messages]}", ""]
+        lines.append(f"Respuesta final:\n{result['messages'][-1].content}")
+        return "\n".join(lines)
+    except Exception as e:  # noqa: BLE001 - a propósito, ver docstring del módulo
+        return (
+            "⚠️ No se pudo invocar el grafo de agentes (esperado en esta máquina "
+            "de desarrollo, sin conexión a Databricks -- ver "
+            f"prompts/constraints_environment.md).\n\nError: {type(e).__name__}: {e}"
+        )
 
 
-# COMMAND ----------
+def main() -> None:
+    _OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
 
-# MAGIC %md ## 4. Unity AI Gateway: model routing real (bonus)
-# MAGIC
-# MAGIC El supervisor raíz de arriba ya usa esto por dentro (`get_router_chat_model`),
-# MAGIC pero acá se ve explícito: el `model-service` `workspace.finhive.finhive_router`
-# MAGIC reparte tráfico 70% Llama 3.3 70B / 30% GPT OSS 120B — correr esta celda varias
-# MAGIC veces y mirar el campo `modelo real usado` para verlo variar.
+    df = load_portfolio_data().get_use_cases()
+    print(f"Portfolio cargado: {len(df)} casos de uso.\n")
 
-# COMMAND ----------
+    print("Generando reporte ejecutivo (determinista, sin LLM)...")
+    report = render_executive_report(df)
+    report_path = _OUTPUTS_DIR / "demo_executive_report.md"
+    report_path.write_text(report, encoding="utf-8")
+    print(f"  -> {report_path}\n")
 
-from finhive.config.settings import get_gateway_embeddings, get_router_chat_model
+    graph = build_top_supervisor(df)
 
-router_llm = get_router_chat_model()
-for _ in range(4):
-    resp = router_llm.invoke("Respondé con una sola palabra: OK")
-    print("modelo real usado:", resp.response_metadata.get("model_name"))
+    for i, (name, question) in enumerate(_SCENARIOS, start=1):
+        print(f"Escenario {i}/{len(_SCENARIOS)}: {name}")
+        print(f"  Pregunta: {question}")
+        transcript = _run_agent_scenario(graph, question)
+        out_path = _OUTPUTS_DIR / f"demo_scenario_{i}_{name}.md"
+        out_path.write_text(f"# Escenario: {name}\n\n**Pregunta:** {question}\n\n{transcript}\n", encoding="utf-8")
+        print(f"  -> {out_path}\n")
 
-embeddings = get_gateway_embeddings()
-vector = embeddings.embed_query("ejemplo de texto financiero")
-print(f"\nEmbeddings (workspace.finhive.finhive_embeddings): vector de {len(vector)} dimensiones")
+    print("Demo completa. Ver outputs/ para los artefactos generados.")
 
-# COMMAND ----------
 
-# MAGIC %md ## 5. Una pregunta por dominio
-
-# COMMAND ----------
-
-ask("¿Cuál es la tasa de fondos federales actual según FRED?")
-
-# COMMAND ----------
-
-ask("¿Cuál es el P/E actual de Apple (AAPL)?")
-
-# COMMAND ----------
-
-ask("¿Cuál es la volatilidad anualizada de un portfolio 50% AAPL y 50% MSFT en los últimos 6 meses?")
-
-# COMMAND ----------
-
-ask("¿Cuándo es el próximo reporte de earnings de Apple (AAPL)?")
-
-# COMMAND ----------
-
-ask("¿Cuál es el precio actual de Bitcoin?")
-
-# COMMAND ----------
-
-# MAGIC %md ## 6. Una pregunta que cruza dos dominios
-# MAGIC
-# MAGIC El router del top-level supervisor tiene que decidir delegar a los dos equipos
-# MAGIC correspondientes, uno por vez (ver ADR 0005 y ADR 0006 sobre cómo se afinó este
-# MAGIC comportamiento).
-
-# COMMAND ----------
-
-ask(
-    "¿Cuál es la tasa de fondos federales actual, y cuál es el P/E de Apple (AAPL)?"
-)
-
-# COMMAND ----------
-
-# MAGIC %md ## 7. Ver las trazas en MLflow
-# MAGIC
-# MAGIC `mlflow.langchain.autolog()` ya quedó activo desde la celda 3 — cada invocación
-# MAGIC de arriba generó una traza completa (cada nodo del grafo, cada tool call, cada
-# MAGIC llamada al LLM). Abrí la pestaña **Experiments** de este notebook, o el panel de
-# MAGIC **Traces** en MLflow, para inspeccionarlas.
+if __name__ == "__main__":
+    main()
