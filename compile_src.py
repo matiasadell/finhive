@@ -2,23 +2,23 @@ import os
 from pathlib import Path
 
 
-s = ""
+s = []
 
 kw = "--**//\\**--"
 
-base = Path(__file__).parent / src
+base = Path(__file__).parent / "src"
 
 def make_file(p: Path):
-    if p.isdir():
-        for pp in os.listir(str(p)):
+    if p.is_dir():
+        for pp in os.listdir(str(p)):
             make_file(p / pp)
     else:
         _ = open(p,"r").read()
         _ = f"{kw}\n{_}\n{kw}\n"
-        s += _
+        s.append(_)
 
 make_file(base)
 
-open("compiled.txt").write(s)
+open("compiled.txt","w").write("".join(s))
 
         
