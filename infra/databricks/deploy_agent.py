@@ -20,6 +20,7 @@ import mlflow
 from mlflow.models.resources import DatabricksServingEndpoint, DatabricksSQLWarehouse
 
 from portfolio_intel.config.settings import (
+    SECRET_SCOPE,
     SUPERVISOR_MODEL_ENDPOINT,
     UC_CATALOG,
     UC_SCHEMA,
@@ -80,7 +81,12 @@ def main() -> None:
         workload_size="Small",
         environment_vars={
             "PORTFOLIO_INTEL_DATA_BACKEND": "databricks",
-            "SQL_WAREHOUSE_ID": get_sql_warehouse_id(),
+            # Referencias a secrets, no valores literales -- Databricks las
+            # resuelve en env vars reales al arrancar el contenedor. Ver
+            # infra/databricks/setup_secrets.py.
+            "DATABRICKS_HOST": f"{{{{secrets/{SECRET_SCOPE}/databricks_host}}}}",
+            "DATABRICKS_TOKEN": f"{{{{secrets/{SECRET_SCOPE}/databricks_token}}}}",
+            "SQL_WAREHOUSE_ID": f"{{{{secrets/{SECRET_SCOPE}/sql_warehouse_id}}}}",
         },
     )
     print(f"Endpoint desplegado: {deployment.endpoint_name}")

@@ -41,22 +41,25 @@ sys.path.insert(0, f"{REPO_PATH}/infra/databricks")
 
 # COMMAND ----------
 
-# MAGIC %md ## Config — backend de datos + SQL warehouse
+# MAGIC %md ## Config — backend de datos + secrets
 # MAGIC
-# MAGIC A diferencia de finhive, acá no hace falta cargar ninguna API key financiera ni
-# MAGIC un token de Databricks explícito: `ChatDatabricks` y `WorkspaceClient()`
-# MAGIC autentican solos dentro del runtime de un notebook de Databricks. Solo hace falta
-# MAGIC decirle al agente que lea las tablas Delta reales, no los CSVs locales
-# MAGIC (`data/store.py`, ver ADR 0003).
+# MAGIC Los secrets (`databricks_host`, `databricks_token`, `sql_warehouse_id`) tienen
+# MAGIC que estar ya cargados en el scope `portfolio_intel`
+# MAGIC (`infra/databricks/setup_secrets.py`, corrido una vez antes de esto). Acá se leen
+# MAGIC con el `dbutils` ambiente del notebook y se cargan como env vars -- es la única
+# MAGIC forma de leer un secret (Databricks no lo deja remoto vía SDK, ver
+# MAGIC `config/settings.py`).
 
 # COMMAND ----------
 
 import os
 
 os.environ["PORTFOLIO_INTEL_DATA_BACKEND"] = "databricks"
-os.environ["SQL_WAREHOUSE_ID"] = "<tu-sql-warehouse-id>"
+os.environ["DATABRICKS_HOST"] = dbutils.secrets.get(scope="portfolio_intel", key="databricks_host")
+os.environ["DATABRICKS_TOKEN"] = dbutils.secrets.get(scope="portfolio_intel", key="databricks_token")
+os.environ["SQL_WAREHOUSE_ID"] = dbutils.secrets.get(scope="portfolio_intel", key="sql_warehouse_id")
 
-print("Config cargada.")
+print("Config cargada (valores no impresos).")
 
 # COMMAND ----------
 
