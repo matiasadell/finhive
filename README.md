@@ -159,11 +159,4 @@ convención de ADRs) pero es un proyecto de dominio completamente distinto — n
 de negocio se comparte entre ambos, y `main`/`finhive` no se tocaron para construir esto
 (todo el trabajo vive en la branch `hackathon-ai-portfolio-intelligence`).
 
-## Autor
 
-Facundo Mazzola — hackathon "AI Portfolio Intelligence Agent" (Corporate Functions Data
-Office), sobre la base arquitectónica de `finhive` (Matías Adell).
-
-## Licencia
-
-MIT — ver [LICENSE](LICENSE).
