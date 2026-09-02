@@ -16,13 +16,22 @@ UC_TABLE_USE_CASE_DETAIL = "ai_use_case_detail"
 SUPERVISOR_MODEL_ENDPOINT = "databricks-meta-llama-3-3-70b-instruct"
 WORKER_MODEL_ENDPOINT = "databricks-meta-llama-3-1-8b-instruct"
 
-# Scope real (ver infra/databricks/setup_secrets.py). Databricks solo deja leer
-# un secret vía el `dbutils` ambiente de un notebook/serving endpoint, no
-# remoto -- por eso estas funciones siguen leyendo env vars: en un notebook esa
-# env var se setea con dbutils.secrets.get(SECRET_SCOPE, ...) primero; en
-# serving, Databricks resuelve las refs `{{secrets/...}}` de deploy_agent.py
-# antes de arrancar el contenedor. Acá (sin ninguna de las dos cosas) se lee de .env.
+# Scope real (ver infra/databricks/setup_secrets.py).
 SECRET_SCOPE = "portfolio_intel"
+
+
+def _read_secret(key: str) -> str | None:
+    # `databricks.sdk.runtime.dbutils` -- no `WorkspaceClient().dbutils` (esa
+    # versión remota no expone `.secrets`, solo funciona corriendo de verdad
+    # sobre compute de Databricks, notebook o .py importado). Afuera de
+    # Databricks esto tira (import o auth), así que se atrapa entero y se cae
+    # a env var/.env como siempre.
+    try:
+        from databricks.sdk.runtime import dbutils
+
+        return dbutils.secrets.get(scope=SECRET_SCOPE, key=key)
+    except Exception:
+        return None
 
 
 def get_data_backend() -> Literal["local", "databricks"]:
@@ -36,7 +45,7 @@ def get_data_backend() -> Literal["local", "databricks"]:
 
 
 def get_databricks_host() -> str:
-    host = os.getenv("DATABRICKS_HOST", "").strip()
+    host = _read_secret("databricks_host") or os.getenv("DATABRICKS_HOST", "").strip()
     if not host:
         raise RuntimeError(
             "DATABRICKS_HOST no está seteada -- en Databricks viene del secret "
@@ -47,7 +56,7 @@ def get_databricks_host() -> str:
 
 
 def get_databricks_token() -> str:
-    token = os.getenv("DATABRICKS_TOKEN", "").strip()
+    token = _read_secret("databricks_token") or os.getenv("DATABRICKS_TOKEN", "").strip()
     if not token:
         raise RuntimeError(
             "DATABRICKS_TOKEN no está seteada -- en Databricks viene del secret "
@@ -58,7 +67,7 @@ def get_databricks_token() -> str:
 
 
 def get_sql_warehouse_id() -> str:
-    warehouse_id = os.getenv("SQL_WAREHOUSE_ID", "").strip()
+    warehouse_id = _read_secret("sql_warehouse_id") or os.getenv("SQL_WAREHOUSE_ID", "").strip()
     if not warehouse_id:
         raise RuntimeError(
             "SQL_WAREHOUSE_ID no está seteada -- en Databricks viene del secret "

@@ -41,23 +41,19 @@ sys.path.insert(0, f"{REPO_PATH}/infra/databricks")
 
 # COMMAND ----------
 
-# MAGIC %md ## Config — backend de datos + secrets
+# MAGIC %md ## Config — backend de datos
 # MAGIC
-# MAGIC Los secrets (`databricks_host`, `databricks_token`, `sql_warehouse_id`) tienen
-# MAGIC que estar ya cargados en el scope `portfolio_intel`
-# MAGIC (`infra/databricks/setup_secrets.py`, corrido una vez antes de esto). Acá se leen
-# MAGIC con el `dbutils` ambiente del notebook y se cargan como env vars -- es la única
-# MAGIC forma de leer un secret (Databricks no lo deja remoto vía SDK, ver
-# MAGIC `config/settings.py`).
+# MAGIC `config/settings.py` lee `databricks_host`/`databricks_token`/`sql_warehouse_id`
+# MAGIC directo del scope `portfolio_intel` corriendo acá (vía
+# MAGIC `databricks.sdk.runtime.dbutils`, ver `_read_secret`) -- tienen que estar ya
+# MAGIC cargados (`infra/databricks/setup_secrets.py`, corrido una vez antes de esto).
+# MAGIC Solo hace falta esta env var, que no es un secret.
 
 # COMMAND ----------
 
 import os
 
 os.environ["PORTFOLIO_INTEL_DATA_BACKEND"] = "databricks"
-os.environ["DATABRICKS_HOST"] = dbutils.secrets.get(scope="portfolio_intel", key="databricks_host")
-os.environ["DATABRICKS_TOKEN"] = dbutils.secrets.get(scope="portfolio_intel", key="databricks_token")
-os.environ["SQL_WAREHOUSE_ID"] = dbutils.secrets.get(scope="portfolio_intel", key="sql_warehouse_id")
 
 print("Config cargada (valores no impresos).")
 
