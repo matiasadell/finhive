@@ -16,11 +16,11 @@ def make_file(p: Path):
             make_file(p / pp)
     else:
         _ = open(p,"r",encoding="utf-8").read()
-        _ = f"{kw}\n{_}\n{kw}\n"
+        _ = f"{kw}\n{str(p)}\n{kw}{_}\n"
         s.append(_)
 
 make_file(base)
-
+print(len(s))
 open("compiled.txt","w",encoding="utf-8").write("".join(s))
 
         
