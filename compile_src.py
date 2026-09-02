@@ -13,12 +13,12 @@ def make_file(p: Path):
         for pp in os.listdir(str(p)):
             make_file(p / pp)
     else:
-        _ = open(p,"r").read()
+        _ = open(p,"r",encoding="utf-8").read()
         _ = f"{kw}\n{_}\n{kw}\n"
         s.append(_)
 
 make_file(base)
 
-open("compiled.txt","w").write("".join(s))
+open("compiled.txt","w",encoding="utf-8").write("".join(s))
 
         
