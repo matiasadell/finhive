@@ -9,6 +9,8 @@ kw = "--**//\\**--"
 base = Path(__file__).parent / "src"
 
 def make_file(p: Path):
+    if p.name == "__pycache__":
+        return
     if p.is_dir():
         for pp in os.listdir(str(p)):
             make_file(p / pp)
