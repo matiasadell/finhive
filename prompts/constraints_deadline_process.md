@@ -1,6 +1,6 @@
 # Constraints — Deadline & process
 
-- Hackathon time budget: 1-3 days total. Solo build by the user with Claude Code;
+- Time budget: 1-3 days total. Solo build by the user with Claude Code;
   no other reviewer. PLAN.md should be scoped so a working, demoable end state is
   reachable well inside that budget, not an open-ended finhive-scale buildout.
 - Evaluation: build a golden-set + basic metrics harness analogous to finhive's

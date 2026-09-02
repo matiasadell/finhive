@@ -5,7 +5,6 @@ description = "Agente de inteligencia de portfolio de IA: prioriza, detecta dupl
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
-authors = [{ name = "Facundo Mazzola" }]
 
 dependencies = [
     # Pisos de versión más altos que "lo mínimo que alcanza" en el

@@ -5,7 +5,7 @@
 
 ## Contexto
 
-Pedido explícito del usuario, posterior al pase original del hackathon (que había dejado
+Pedido explícito del usuario, posterior al pase original (que había dejado
 esto fuera de alcance a propósito, ver `prompts/non_goals.md` y ADR 0004): desplegar el
 agente como un endpoint real de MLflow/Databricks, invocable con requests reales y visible
 en la pestaña de Experiments/Serving del workspace. Esta máquina de desarrollo sigue sin

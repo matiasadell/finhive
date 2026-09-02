@@ -25,10 +25,10 @@ END`, sin los nodos `memory_recall`/`memory_remember` que sí tiene finhive.
 
 ## Consecuencias
 
-- Menos superficie de código para un hackathon de 1-3 días — más tiempo en el núcleo
+- Menos superficie de código para un desarrollo de 1-3 días — más tiempo en el núcleo
   determinista (ADR 0002), que es lo que de verdad se evalúa (prioritization quality,
   reuse identification, value realization, explainability).
-- Si el proyecto sigue después del hackathon y se vuelve conversacional de verdad (un
+- Si el proyecto sigue más adelante y se vuelve conversacional de verdad (un
   chat multi-turno con el portfolio), el patrón de `memory/` de finhive es directamente
   reusable — mismo criterio de tablas Delta en Unity Catalog, mismo diseño de
   `memory_recall`/`memory_remember` como nodos del grafo, no como tools invocadas por el LLM.

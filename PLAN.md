@@ -11,7 +11,7 @@ from the company's two AI-portfolio datasets (RUAI Use Case, AI Use Case Detail)
 with every claim traceable to real data, and produces an executive-readable
 recommendation report.
 
-"Done" for this hackathon pass: a Python package (no server, no frontend) on branch
+"Done" for this pass: a Python package (no server, no frontend) on branch
 `hackathon-ai-portfolio-intelligence` that, given the synthetic dataset, runs a
 hierarchical LangGraph agent end-to-end (structurally verified here; live-LLM
 verified later on the work machine) across 3-4 demo scenarios, each producing a

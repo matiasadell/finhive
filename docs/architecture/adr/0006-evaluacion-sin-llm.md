@@ -8,7 +8,7 @@
 finhive evalúa el sistema completo con `mlflow.genai.evaluate()` contra Databricks real,
 incluido un LLM-judge de groundedness (ADR 0013/0014 archivadas) — no reproducible acá,
 sin conexión a Databricks. El usuario pidió igual evaluación formal ("technical
-effectiveness measured by relevant metrics" es parte de la rúbrica del hackathon), así que
+effectiveness measured by relevant metrics" es parte de los criterios de evaluación), así que
 hacía falta un diseño que diera una métrica real y verificable en esta máquina.
 
 ## Decisión

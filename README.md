@@ -158,5 +158,3 @@ multiagente jerárquico de research financiero construido antes, sobre el mismo 
 convención de ADRs) pero es un proyecto de dominio completamente distinto — ningún código
 de negocio se comparte entre ambos, y `main`/`finhive` no se tocaron para construir esto
 (todo el trabajo vive en la branch `hackathon-ai-portfolio-intelligence`).
-
-

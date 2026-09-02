@@ -13,7 +13,7 @@ questions leadership can't currently answer from the raw governance data:
 The deliverable is a **working prototype** (Python package, no server, no frontend —
 a teammate builds the UI against it), an **executive recommendation output**
 (Markdown report generator), and a **demo of several scenarios** run end-to-end,
-satisfying the hackathon's stated evaluation axes: prioritization quality, value
+satisfying the challenge's stated evaluation axes: prioritization quality, value
 realization, reuse identification, and recommendation explainability — every
 recommendation the system produces must be traceable to concrete rows/fields in the
 source data, not asserted by the LLM on its own authority.

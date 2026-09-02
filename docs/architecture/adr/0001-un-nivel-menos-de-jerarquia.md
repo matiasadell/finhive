@@ -11,7 +11,7 @@ supervisor raíz → sub-supervisor por dominio (`langgraph_supervisor.create_su
 LLM de routing (raíz + sub-supervisor) antes de llegar a un worker.
 
 Portfolio Intel tiene 4 dominios (prioritización, reuso/duplicación, value realization,
-recomendación de portfolio) y un presupuesto de 1-3 días de hackathon (ver
+recomendación de portfolio) y un presupuesto de tiempo acotado de 1-3 días (ver
 `prompts/constraints_deadline_process.md`), sin poder invocar el LLM real desde esta
 máquina de desarrollo para iterar sobre prompts de sub-supervisor (ver
 `prompts/constraints_environment.md`) — cada capa extra de routing es una superficie de
@@ -39,7 +39,7 @@ proyecto ya son unidades de trabajo chicas y bien delimitadas por su propio tool
   desambiguación entre dominios (mismo hallazgo que ADR 0006 de finhive-legacy: nombres
   solos no alcanzan, hacen falta descripciones explícitas con casos de frontera) — no
   cambia con la jerarquía más chata.
-- Si este proyecto creciera más allá del hackathon y un dominio necesitara varios
+- Si este proyecto creciera más allá de este pase inicial y un dominio necesitara varios
   especialistas, agregar un sub-supervisor a ese dominio específico es un cambio
   localizado (un nuevo `agents/<dominio>/supervisor.py` al estilo finhive), no una
   reescritura del supervisor raíz.
